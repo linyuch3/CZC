@@ -39,16 +39,103 @@
 
 ## 📁 文件说明
 
+### 核心文件
+
 | 文件 | 说明 | 用途 |
 |------|------|------|
 | `User-Manager-Worker.js` | 管理端 | 用户管理、配置管理、Web界面 |
 | `Node-Worker.js` | 节点端 | 流量转发、智能代理、订阅生成 |
 
+### V2bX 对接相关文件
+
+| 文件 | 说明 | 大小 |
+|------|------|------|
+| `V2bX-Node-Worker.js` | V2board 节点对接 Worker | ~31KB |
+| `V2bX-DEPLOYMENT.md` | 部署文档 | - |
+
+**V2bX-Node-Worker.js 特性**：
+- ✅ 对接 V2board/V2bX 后端
+- ✅ 支持 VLESS/VMess/Trojan 协议
+- ✅ 内置 5 个代理IP + 6 个优选域名
+- ✅ 智能地理位置匹配
+- ✅ 流量统计和在线用户上报
+- ✅ 60秒配置缓存
+- ✅ 支持 Cloudflare Workers Snippet 部署（<32KB）
+
+---
+
+## 🚀 V2board 快速部署
+
+### 方式一：Cloudflare Workers Snippet（推荐）
+
+1. **修改配置**：
+```javascript
+const V2BOARD_CONFIG = {
+    apiHost: 'https://your-v2board.com',  // V2board 地址
+    apiKey: 'your-api-token',              // API Token
+    nodeId: 1,                             // 节点 ID
+    nodeType: 'vless'                      // 协议类型
+};
+```
+
+2. **复制代码**：
+   - 打开 `V2bX-Node-Worker.js`
+   - 复制全部代码
+
+3. **部署到 Cloudflare**：
+   - Workers & Pages → 创建 → 创建 Worker
+   - 粘贴代码 → 部署
+
+4. **配置 V2board**：
+   - 节点地址：`your-worker.workers.dev`
+   - 端口：`443`
+   - 传输协议：`ws`
+   - TLS：`开启`
+
+### 方式二：标准 Worker 部署
+
+详见 `V2bX-DEPLOYMENT.md`
+
+---
+
+## 💡 原版 VLESS 系统部署
+
+| 文件 | 说明 |
+|------|------|
+| `V2bX-Node-Worker.js` | V2bX 节点端实现（对接 V2board 后端） |
+| `V2bX-DEPLOYMENT.md` | V2bX 部署指南 |
+
 ---
 
 ## 🚀 完整部署教程
 
-### 准备工作
+### 部署方式选择
+
+本项目提供**两种部署方式**：
+
+| 特性 | 独立部署 | V2bX 对接部署 |
+|------|---------|--------------|
+| 👥 用户管理 | ✅ 内置 Web 界面 | ✅ V2board 后台 |
+| 💾 数据存储 | D1 数据库 | V2board 数据库 |
+| 📊 流量统计 | ✅ 基础统计 | ✅ 完整统计报表 |
+| 🎯 适用场景 | 个人/小团队 | 商业运营 |
+| 🔧 部署难度 | ⭐⭐ 简单 | ⭐⭐⭐ 中等 |
+| 📖 文档 | [下方教程](#准备工作独立部署) | [V2bX-DEPLOYMENT.md](V2bX-DEPLOYMENT.md) |
+
+#### 方式一：独立部署（推荐新手）
+- ✅ 使用内置的用户管理系统
+- ✅ 不需要额外的后端
+- ✅ 完整的 Web 管理界面
+- 👉 查看下方[完整部署教程](#准备工作独立部署)
+
+#### 方式二：V2bX 对接部署（已有 V2board 用户）
+- ✅ 对接现有的 V2board/V2bX 后端
+- ✅ 多节点统一管理
+- 👉 查看 [V2bX-DEPLOYMENT.md](V2bX-DEPLOYMENT.md)
+
+---
+
+### 准备工作（独立部署）
 
 在开始之前，你需要：
 - ✅ 一个 Cloudflare 账号（免费版即可）
