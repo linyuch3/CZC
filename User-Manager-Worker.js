@@ -63,6 +63,7 @@ export default {
       if (path === '/api/plans') return await handleGetPlans(request, env);
       if (path === '/api/admin/plans') return await handleAdminGetPlans(request, env);
       if (path === '/api/admin/orders') return await handleAdminGetOrders(request, env);
+      if (path === '/api/admin/check') return await handleAdminCheck(request, env);
     }
     if (request.method === 'GET') {
       if (path === '/api/user/orders') return await handleUserGetOrders(request, env);
@@ -2039,11 +2040,12 @@ async function handleAdminPanel(request, env, adminPath) {
             if (!domain.startsWith('http')) domain = 'https://' + domain;
             const originalUrl = domain + '/' + uuid;
             
-            let finalUrl, clientName;
+            let finalUrl, clientName, schemeUrl;
             
             if (type === 'original') {
                 finalUrl = originalUrl;
                 clientName = '原始订阅';
+                schemeUrl = originalUrl;
             } else {
                 const targetMap = {
                     'clash': 'clash',
@@ -2061,8 +2063,17 @@ async function handleAdminPanel(request, env, adminPath) {
                     'v2ray': 'V2Ray',
                     'surfboard': 'Surfboard'
                 };
+                const schemeMap = {
+                    'clash': 'clash://install-config?url=',
+                    'surge': 'surge:///install-config?url=',
+                    'shadowrocket': 'shadowrocket://add/',
+                    'quanx': 'quantumult-x:///add-resource?remote-resource=',
+                    'v2ray': 'v2rayn://install-config?url=',
+                    'surfboard': 'surfboard:///install-config?url='
+                };
                 finalUrl = apiBaseUrl + '?target=' + targetMap[type] + '&url=' + encodeURIComponent(originalUrl);
                 clientName = clientNames[type];
+                schemeUrl = schemeMap[type] + encodeURIComponent(finalUrl);
             }
             
             navigator.clipboard.writeText(finalUrl).then(() => {
@@ -2825,25 +2836,6 @@ async function renderAuthPage(env) {
             text-align: center;
             font-size: 14px;
         }
-        .admin-link {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .admin-link a {
-            display: inline-block;
-            padding: 10px 24px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            text-decoration: none;
-            border-radius: 20px;
-            font-size: 13px;
-            transition: all 0.3s;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        .admin-link a:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateY(-2px);
-        }
         /* 移动端适配 */
         @media (max-width: 480px) {
             body {
@@ -2946,10 +2938,6 @@ async function renderAuthPage(env) {
                 `}
             </div>
         </div>
-    </div>
-    
-    <div class="admin-link">
-        <a href="${adminPath}">🔑 管理员登录</a>
     </div>
 
     <script>
@@ -3359,6 +3347,49 @@ async function renderUserDashboard(env, userInfo) {
             bottom: 50px;
         }
         
+        /* 订阅按钮下拉菜单 */
+        .sub-btn-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .sub-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 180px;
+            z-index: 100;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .sub-dropdown.show {
+            display: block;
+            animation: dropdownFade 0.2s;
+        }
+        @keyframes dropdownFade {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .sub-dropdown-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            color: #333;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .sub-dropdown-item:hover {
+            background: #f5f5f5;
+        }
+        .sub-dropdown-item:active {
+            background: #e8e8e8;
+        }
+        
         /* 移动端汉堡菜单按钮 */
         .menu-toggle {
             display: none;
@@ -3444,6 +3475,7 @@ async function renderUserDashboard(env, userInfo) {
                     ${new Date().toLocaleDateString('zh-CN')}
                 </div>
                 <button onclick="handleLogout()" style="margin-top:10px;width:100%;padding:8px;background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:4px;cursor:pointer;font-size:13px;">🚪 退出登录</button>
+                <button id="adminEntryBtn" onclick="goToAdmin()" style="display:none;margin-top:8px;width:100%;padding:8px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">🔑 管理员后台</button>
             </div>
             <ul class="menu">
                 <li class="menu-item active" onclick="switchSection('account', event)">
@@ -3536,11 +3568,41 @@ async function renderUserDashboard(env, userInfo) {
             ` : ''}
             
             <div class="sub-buttons">
-                <button class="sub-btn" onclick="copySubLink('original')">🔗 通用订阅</button>
-                <button class="sub-btn" onclick="copySubLink('clash')">⚡ Clash</button>
-                <button class="sub-btn" onclick="copySubLink('surge')">🌊 Surge</button>
-                <button class="sub-btn" onclick="copySubLink('shadowrocket')">🚀 Shadowrocket</button>
-                <button class="sub-btn" onclick="copySubLink('quanx')">🔮 Quantumult X</button>
+                <div class="sub-btn-wrapper">
+                    <button class="sub-btn" onclick="toggleSubDropdown('original')">🔗 通用订阅 ▼</button>
+                    <div class="sub-dropdown" id="sub-dropdown-original">
+                        <div class="sub-dropdown-item" onclick="copySubOnly('original')">📋 复制订阅</div>
+                        <div class="sub-dropdown-item" onclick="importSub('original')">⬇️ 一键导入</div>
+                    </div>
+                </div>
+                <div class="sub-btn-wrapper">
+                    <button class="sub-btn" onclick="toggleSubDropdown('clash')">⚡ Clash ▼</button>
+                    <div class="sub-dropdown" id="sub-dropdown-clash">
+                        <div class="sub-dropdown-item" onclick="copySubOnly('clash')">📋 复制 Clash 订阅</div>
+                        <div class="sub-dropdown-item" onclick="importSub('clash')">⬇️ 一键导入 Clash</div>
+                    </div>
+                </div>
+                <div class="sub-btn-wrapper">
+                    <button class="sub-btn" onclick="toggleSubDropdown('surge')">🌊 Surge ▼</button>
+                    <div class="sub-dropdown" id="sub-dropdown-surge">
+                        <div class="sub-dropdown-item" onclick="copySubOnly('surge')">📋 复制 Surge 订阅</div>
+                        <div class="sub-dropdown-item" onclick="importSub('surge')">⬇️ 一键导入 Surge</div>
+                    </div>
+                </div>
+                <div class="sub-btn-wrapper">
+                    <button class="sub-btn" onclick="toggleSubDropdown('shadowrocket')">🚀 Shadowrocket ▼</button>
+                    <div class="sub-dropdown" id="sub-dropdown-shadowrocket">
+                        <div class="sub-dropdown-item" onclick="copySubOnly('shadowrocket')">📋 复制 Shadowrocket 订阅</div>
+                        <div class="sub-dropdown-item" onclick="importSub('shadowrocket')">⬇️ 一键导入 Shadowrocket</div>
+                    </div>
+                </div>
+                <div class="sub-btn-wrapper">
+                    <button class="sub-btn" onclick="toggleSubDropdown('quanx')">🔮 Quantumult X ▼</button>
+                    <div class="sub-dropdown" id="sub-dropdown-quanx">
+                        <div class="sub-dropdown-item" onclick="copySubOnly('quanx')">📋 复制 Quantumult X 订阅</div>
+                        <div class="sub-dropdown-item" onclick="importSub('quanx')">⬇️ 一键导入 Quantumult X</div>
+                    </div>
+                </div>
             </div>
             `}
         </div>
@@ -3592,7 +3654,18 @@ async function renderUserDashboard(env, userInfo) {
             });
         }
 
-        function copySubLink(type) {
+        function toggleSubDropdown(type) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('sub-dropdown-' + type);
+            const allDropdowns = document.querySelectorAll('.sub-dropdown');
+            allDropdowns.forEach(function(d) {
+                if (d !== dropdown) d.classList.remove('show');
+            });
+            dropdown.classList.toggle('show');
+        }
+        
+        function copySubOnly(type) {
+            event.stopPropagation();
             if (!subUrl) {
                 showToast('\u274c \u8ba2\u9605\u5730\u5740\u672a\u914d\u7f6e');
                 return;
@@ -3603,7 +3676,7 @@ async function renderUserDashboard(env, userInfo) {
 
             if (type === 'original') {
                 finalUrl = originalUrl;
-                clientName = '\u539f\u59cb\u8ba2\u9605';
+                clientName = '\u901a\u7528\u8ba2\u9605';
             } else {
                 const targetMap = {
                     'clash': 'clash',
@@ -3622,11 +3695,86 @@ async function renderUserDashboard(env, userInfo) {
             }
 
             navigator.clipboard.writeText(finalUrl).then(function() {
-                showToast('\u2705 ' + clientName + ' \u8ba2\u9605\u5df2\u590d\u5236');
+                showToast('\u2705 ' + clientName + ' \u8ba2\u9605\u94fe\u63a5\u5df2\u590d\u5236');
+                document.getElementById('sub-dropdown-' + type).classList.remove('show');
             }).catch(function() {
                 showToast('\u274c \u590d\u5236\u5931\u8d25');
             });
         }
+        
+        function importSub(type) {
+            event.stopPropagation();
+            if (!subUrl) {
+                showToast('\u274c \u8ba2\u9605\u5730\u5740\u672a\u914d\u7f6e');
+                return;
+            }
+
+            const originalUrl = subUrl + '/' + uuid;
+            let finalUrl, clientName, schemeUrl;
+
+            if (type === 'original') {
+                finalUrl = originalUrl;
+                clientName = '\u901a\u7528\u5ba2\u6237\u7aef';
+                schemeUrl = originalUrl;
+            } else {
+                const targetMap = {
+                    'clash': 'clash',
+                    'surge': 'surge',
+                    'shadowrocket': 'shadowrocket',
+                    'quanx': 'quanx'
+                };
+                const clientNames = {
+                    'clash': 'Clash',
+                    'surge': 'Surge',
+                    'shadowrocket': 'Shadowrocket',
+                    'quanx': 'Quantumult X'
+                };
+                const schemeMap = {
+                    'clash': 'clash://install-config?url=',
+                    'surge': 'surge:///install-config?url=',
+                    'shadowrocket': 'shadowrocket://add/',
+                    'quanx': 'quantumult-x:///add-resource?remote-resource='
+                };
+                finalUrl = apiBaseUrl + '?target=' + targetMap[type] + '&url=' + encodeURIComponent(originalUrl);
+                clientName = clientNames[type];
+                schemeUrl = schemeMap[type] + encodeURIComponent(finalUrl);
+            }
+
+            window.location.href = schemeUrl;
+            showToast('\u2705 \u6b63\u5728\u6253\u5f00 ' + clientName + '...');
+            document.getElementById('sub-dropdown-' + type).classList.remove('show');
+        }
+        
+        function goToAdmin() {
+            window.location.href = '${adminPath}';
+        }
+        
+        async function checkAdminRole() {
+            try {
+                const response = await fetch('/api/admin/check', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.isAdmin) {
+                        document.getElementById('adminEntryBtn').style.display = 'block';
+                    }
+                }
+            } catch (error) {
+                console.log('Not an admin user');
+            }
+        }
+        
+        // 页面加载时检查管理员权限
+        checkAdminRole();
+        
+        // 点击页面其他地方关闭下拉菜单
+        document.addEventListener('click', function() {
+            document.querySelectorAll('.sub-dropdown').forEach(function(d) {
+                d.classList.remove('show');
+            });
+        });
 
         function switchSection(sectionName, event) {
             var items = document.querySelectorAll('.menu-item');
@@ -4285,6 +4433,15 @@ async function handleUserCreateOrder(request, env) {
             headers: { 'Content-Type': 'application/json; charset=utf-8' } 
         });
     }
+}
+
+// 检查管理员权限
+async function handleAdminCheck(request, env) {
+    const isAdmin = await checkAuth(request, env);
+    return new Response(JSON.stringify({ isAdmin }), { 
+        status: 200, 
+        headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+    });
 }
 
 // 管理员获取订单列表
