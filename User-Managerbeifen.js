@@ -61,11 +61,7 @@ export default {
     // 4. 用户套餐和订单 API
     if (request.method === 'GET') {
       if (path === '/api/plans') return await handleGetPlans(request, env);
-      if (path === '/api/admin/plans') return await handleAdminGetPlans(request, env);
       if (path === '/api/admin/orders') return await handleAdminGetOrders(request, env);
-    }
-    if (request.method === 'GET') {
-      if (path === '/api/user/orders') return await handleUserGetOrders(request, env);
     }
     if (request.method === 'POST') {
       if (path === '/api/user/orders/create') return await handleUserCreateOrder(request, env);
@@ -1811,22 +1807,7 @@ async function handleAdminPanel(request, env, adminPath) {
         function delConfig(type, index) { if(type === 'ProxyIP') proxyIPs.splice(index, 1); else bestDomains.splice(index, 1); renderList(type); }
         
         // API 交互
-        async function api(url, data) { 
-          const fd = new FormData(); 
-          for(let k in data) fd.append(k, data[k]); 
-          const res = await fetch(url, { method: 'POST', body: fd }); 
-          if(res.ok) { 
-            toast('操作成功'); 
-            closeEdit(); 
-            // 保存当前标签，刷新后恢复
-            localStorage.setItem('adminCurrentSection', 'users');
-            setTimeout(()=>location.reload(), 500); 
-          } else { 
-            toast('操作失败');
-            document.getElementById('addBtn').disabled = false;
-            document.getElementById('editSaveBtn').disabled = false;
-          }
-        }
+        async function api(url, data) { const fd = new FormData(); for(let k in data) fd.append(k, data[k]); const res = await fetch(url, { method: 'POST', body: fd }); if(res.ok) { toast('操作成功'); setTimeout(()=>location.reload(), 500); } else toast('操作失败'); }
         
         // 自动获取优选 IP (替换旧IP而不是累加)
         async function fetchBestIPs(type) {
@@ -2104,9 +2085,6 @@ async function handleAdminPanel(request, env, adminPath) {
           document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
           event.currentTarget.classList.add('active');
           
-          // 保存当前标签到localStorage
-          localStorage.setItem('adminCurrentSection', sectionName);
-          
           // 加载对应数据
           if(sectionName === 'plans') loadPlans();
           if(sectionName === 'orders') loadOrders();
@@ -2114,25 +2092,6 @@ async function handleAdminPanel(request, env, adminPath) {
           // 滚动到顶部
           document.querySelector('.main-content').scrollTop = 0;
         }
-        
-        // 页面加载时恢复上次的标签
-        window.addEventListener('DOMContentLoaded', function() {
-          const lastSection = localStorage.getItem('adminCurrentSection');
-          if(lastSection && lastSection !== 'dashboard') {
-            const menuItem = document.querySelector('[onclick*="' + lastSection + '"]');
-            if(menuItem) {
-              document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
-              document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-              menuItem.classList.add('active');
-              document.getElementById('section-' + lastSection).classList.add('active');
-              if(lastSection === 'plans') loadPlans();
-              if(lastSection === 'orders') loadOrders();
-            }
-          } else {
-            // 首次访问时清除可能存在的旧状态
-            localStorage.removeItem('adminCurrentSection');
-          }
-        });
         
         // 套餐管理功能
         function escapeHtml(str) {
@@ -2142,7 +2101,7 @@ async function handleAdminPanel(request, env, adminPath) {
         
         async function loadPlans() {
           try {
-            const res = await fetch('/api/admin/plans');
+            const res = await fetch('/api/plans');
             const data = await res.json();
             if(!data.success) return;
             
@@ -2152,31 +2111,29 @@ async function handleAdminPanel(request, env, adminPath) {
               return;
             }
             
-            var html = '';
-            for(var i = 0; i < data.plans.length; i++) {
-              var p = data.plans[i];
-              var name = escapeHtml(p.name);
-              var desc = escapeHtml(p.description || '\u65e0\u63cf\u8ff0');
-              var bgColor = p.enabled ? '#52c41a' : '#ccc';
-              var statusText = p.enabled ? '\u542f\u7528' : '\u7981\u7528';
-              var btnText = p.enabled ? '\u7981\u7528' : '\u542f\u7528';
-              var enabledNum = p.enabled ? 1 : 0;
-              
-              html += '<div class="user-row" style="padding:15px;margin-bottom:10px;">';
-              html += '<div style="flex:1;">';
-              html += '<strong>' + name + '</strong>';
-              html += '<p style="color:#666;font-size:13px;margin:5px 0;">' + desc + '</p>';
-              html += '<span class="badge" style="background:' + bgColor + ';">' + statusText + '</span>';
-              html += '<span class="badge" style="background:#1890ff;margin-left:5px;">' + p.duration_days + '\u5929</span>';
-              html += '<span style="margin-left:10px;font-size:14px;color:#666;">\uffe5' + (p.price || 0) + '</span>';
-              html += '</div>';
-              html += '<div class="user-actions">';
-              html += '<button onclick="togglePlan(' + p.id + ', ' + enabledNum + ')" class="btn-primary" style="padding:5px 12px;">' + btnText + '</button>';
-              html += '<button onclick="deletePlan(' + p.id + ')" class="btn-primary" style="padding:5px 12px;background:#ff4d4f;">\u5220\u9664</button>';
-              html += '</div>';
-              html += '</div>';
-            }
-            container.innerHTML = html;
+            container.innerHTML = data.plans.map(p => {
+              const name = escapeHtml(p.name);
+              const desc = escapeHtml(p.description || '无描述');
+              const bgColor = p.enabled ? '#52c41a' : '#ccc';
+              const statusText = p.enabled ? '启用' : '禁用';
+              const btnText = p.enabled ? '禁用' : '启用';
+              const enabledNum = p.enabled ? 1 : 0;
+              return \`
+              <div class="user-row" style="padding:15px;margin-bottom:10px;">
+                <div style="flex:1;">
+                  <strong>\${name}</strong>
+                  <p style="color:#666;font-size:13px;margin:5px 0;">\${desc}</p>
+                  <span class="badge" style="background:\${bgColor};">\${statusText}</span>
+                  <span class="badge" style="background:#1890ff;margin-left:5px;">\${p.duration_days}天</span>
+                  <span style="margin-left:10px;font-size:14px;color:#666;">¥\${p.price || 0}</span>
+                </div>
+                <div class="user-actions">
+                  <button onclick="togglePlan(\${p.id}, \${enabledNum})" class="btn-primary" style="padding:5px 12px;">\${btnText}</button>
+                  <button onclick="deletePlan(\${p.id})" class="btn-primary" style="padding:5px 12px;background:#ff4d4f;">删除</button>
+                </div>
+              </div>
+              \`;
+            }).join('');
           } catch(e) {
             console.error('加载套餐失败:', e);
           }
@@ -2268,27 +2225,25 @@ async function handleAdminPanel(request, env, adminPath) {
               return;
             }
             
-            var html = '';
-            for(var i = 0; i < pendingOrders.length; i++) {
-              var o = pendingOrders[i];
-              var username = escapeHtml(o.username);
-              var planName = escapeHtml(o.plan_name);
-              var createTime = new Date(o.created_at).toLocaleString('zh-CN');
-              
-              html += '<div class="user-row" style="padding:15px;margin-bottom:10px;">';
-              html += '<div style="flex:1;">';
-              html += '<strong>\u8ba2\u5355 #' + o.id + '</strong>';
-              html += '<p style="color:#666;font-size:13px;margin:5px 0;">\u7528\u6237\uff1a' + username + ' | \u5957\u9910\uff1a' + planName + ' (' + o.duration_days + '\u5929)</p>';
-              html += '<p style="color:#999;font-size:12px;">\u521b\u5efa\u65f6\u95f4\uff1a' + createTime + '</p>';
-              html += '<span class="badge" style="background:#faad14;">\u5f85\u5ba1\u6838</span>';
-              html += '</div>';
-              html += '<div class="user-actions">';
-              html += '<button onclick="approveOrder(' + o.id + ')" class="btn-primary" style="padding:5px 12px;background:#52c41a;">\u901a\u8fc7</button>';
-              html += '<button onclick="rejectOrder(' + o.id + ')" class="btn-primary" style="padding:5px 12px;background:#ff4d4f;">\u62d2\u7edd</button>';
-              html += '</div>';
-              html += '</div>';
-            }
-            container.innerHTML = html;
+            container.innerHTML = pendingOrders.map(o => {
+              const username = escapeHtml(o.username);
+              const planName = escapeHtml(o.plan_name);
+              const createTime = new Date(o.created_at).toLocaleString('zh-CN');
+              return \`
+              <div class="user-row" style="padding:15px;margin-bottom:10px;">
+                <div style="flex:1;">
+                  <strong>订单 #\${o.id}</strong>
+                  <p style="color:#666;font-size:13px;margin:5px 0;">用户：\${username} | 套餐：\${planName} (\${o.duration_days}天)</p>
+                  <p style="color:#999;font-size:12px;">创建时间：\${createTime}</p>
+                  <span class="badge" style="background:#faad14;">待审核</span>
+                </div>
+                <div class="user-actions">
+                  <button onclick="approveOrder(\${o.id})" class="btn-primary" style="padding:5px 12px;background:#52c41a;">通过</button>
+                  <button onclick="rejectOrder(\${o.id})" class="btn-primary" style="padding:5px 12px;background:#ff4d4f;">拒绝</button>
+                </div>
+              </div>
+              \`;
+            }).join('');
           } catch(e) {
             console.error('加载订单失败:', e);
           }
@@ -2337,9 +2292,6 @@ async function handleAdminPanel(request, env, adminPath) {
         // 管理员登出
         async function adminLogout() {
           if(!confirm('确定要退出登录吗？')) return;
-          
-          // 清除保存的标签状态
-          localStorage.removeItem('adminCurrentSection');
           
           try {
             const res = await fetch('/api/admin/logout', { method: 'POST' });
@@ -2825,65 +2777,6 @@ async function renderAuthPage(env) {
             text-align: center;
             font-size: 14px;
         }
-        .admin-link {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .admin-link a {
-            display: inline-block;
-            padding: 10px 24px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            text-decoration: none;
-            border-radius: 20px;
-            font-size: 13px;
-            transition: all 0.3s;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        .admin-link a:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateY(-2px);
-        }
-        /* 移动端适配 */
-        @media (max-width: 480px) {
-            body {
-                padding: 10px;
-            }
-            .container {
-                border-radius: 15px;
-                max-width: 100%;
-            }
-            .form-container {
-                padding: 25px 20px;
-            }
-            h2 {
-                font-size: 24px;
-            }
-            .tab {
-                padding: 15px 10px;
-                font-size: 14px;
-            }
-            input {
-                padding: 10px 12px;
-                font-size: 14px;
-            }
-            button {
-                padding: 12px;
-                font-size: 15px;
-            }
-        }
-        @media (max-width: 360px) {
-            .form-container {
-                padding: 20px 15px;
-            }
-            h2 {
-                font-size: 22px;
-            }
-            .tab {
-                padding: 12px 8px;
-                font-size: 13px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -2936,6 +2829,10 @@ async function renderAuthPage(env) {
                         <label>确认密码</label>
                         <input type="password" name="confirm_password" required placeholder="请再次输入密码">
                     </div>
+                    <div class="form-group">
+                        <label>邮箱 (可选)</label>
+                        <input type="email" name="email" placeholder="选填，用于找回密码">
+                    </div>
                     <button type="submit" id="register-btn">注册</button>
                 </form>
                 ` : `
@@ -2948,8 +2845,8 @@ async function renderAuthPage(env) {
         </div>
     </div>
     
-    <div class="admin-link">
-        <a href="${adminPath}">🔑 管理员登录</a>
+    <div style="text-align:center;margin-top:20px;">
+        <a href="${adminPath}" style="color:#999;font-size:12px;text-decoration:none;">·</a>
     </div>
 
     <script>
@@ -3358,85 +3255,20 @@ async function renderUserDashboard(env, userInfo) {
             opacity: 1;
             bottom: 50px;
         }
-        
-        /* 移动端汉堡菜单按钮 */
-        .menu-toggle {
-            display: none;
-            position: fixed;
-            top: 15px;
-            left: 15px;
-            z-index: 1001;
-            background: #001529;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            width: 45px;
-            height: 45px;
-            cursor: pointer;
-            font-size: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            transition: all 0.3s;
-        }
-        .menu-toggle:active {
-            transform: scale(0.95);
-        }
-        
-        /* 遮罩层 */
-        .sidebar-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 999;
-        }
-        
         @media (max-width: 768px) {
-            .menu-toggle {
-                display: block;
-            }
-            .sidebar {
-                position: fixed;
-                left: -240px;
-                top: 0;
-                bottom: 0;
-                width: 240px;
-                z-index: 1000;
-                transition: left 0.3s;
-            }
-            .sidebar.mobile-open {
-                left: 0;
-            }
-            .sidebar-overlay.show {
-                display: block;
-            }
-            .main-content {
-                width: 100%;
-            }
             .header {
                 text-align: center;
             }
             .info-grid {
                 grid-template-columns: 1fr;
             }
-            .content-header {
-                padding-left: 70px;
-            }
         }
     </style>
 </head>
 <body>
-    <!-- 移动端菜单按钮 -->
-    <button class="menu-toggle" onclick="toggleMobileSidebar()">☰</button>
-    
-    <!-- 侧边栏遮罩层 -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    
     <div class="layout">
         <!-- 左侧导航 -->
-        <div class="sidebar" id="sidebar">
+        <div class="sidebar">
             <div class="sidebar-header">
                 <h1>VLESS 用户面板</h1>
                 <div class="user-info-mini">
@@ -3449,10 +3281,6 @@ async function renderUserDashboard(env, userInfo) {
                 <li class="menu-item active" onclick="switchSection('account', event)">
                     <span>📊</span>
                     <span>账号信息</span>
-                </li>
-                <li class="menu-item" onclick="switchSection('orders', event)">
-                    <span>💳</span>
-                    <span>我的订单</span>
                 </li>
                 <li class="menu-item" onclick="switchSection('plans', event)">
                     <span>📦</span>
@@ -3547,16 +3375,6 @@ async function renderUserDashboard(env, userInfo) {
                 </div>
             </div>
 
-            <!-- 订单管理页 -->
-            <div id="section-orders" class="section">
-                <div class="content-header">
-                    <h2>💳 我的订单</h2>
-                </div>
-                <div class="content-body">
-                    <div id="userOrdersList"></div>
-                </div>
-            </div>
-
             <!-- 套餐购买页 -->
             <div id="section-plans" class="section">
                 <div class="content-header">
@@ -3642,76 +3460,10 @@ async function renderUserDashboard(env, userInfo) {
                 event.currentTarget.classList.add('active');
             }
             document.getElementById('section-' + sectionName).classList.add('active');
-            
-            // 保存当前标签
-            localStorage.setItem('userCurrentSection', sectionName);
-            
-            // 加载对应数据
-            if(sectionName === 'plans') {
-                loadUserPlans();
-            }
-            if(sectionName === 'orders') {
-                loadUserOrders();
-            }
-            
-            // 移动端切换页面时关闭侧边栏
-            if (window.innerWidth <= 768) {
-                var sidebar = document.getElementById('sidebar');
-                var overlay = document.querySelector('.sidebar-overlay');
-                if(sidebar && sidebar.classList.contains('mobile-open')) {
-                    sidebar.classList.remove('mobile-open');
-                    overlay.classList.remove('show');
-                }
-            }
-        }
-        
-        function toggleMobileSidebar() {
-            var sidebar = document.getElementById('sidebar');
-            var overlay = document.querySelector('.sidebar-overlay');
-            sidebar.classList.toggle('mobile-open');
-            overlay.classList.toggle('show');
-        }
-        
-        // 页面加载时恢复上次的标签
-        window.addEventListener('DOMContentLoaded', function() {
-            const lastSection = localStorage.getItem('userCurrentSection');
-            if(lastSection && lastSection !== 'account') {
-                var items = document.querySelectorAll('.menu-item');
-                for(var i = 0; i < items.length; i++) {
-                    items[i].classList.remove('active');
-                    if(items[i].getAttribute('onclick') && items[i].getAttribute('onclick').indexOf(lastSection) > -1) {
-                        items[i].classList.add('active');
-                    }
-                }
-                var sections = document.querySelectorAll('.section');
-                for(var i = 0; i < sections.length; i++) {
-                    sections[i].classList.remove('active');
-                }
-                var targetSection = document.getElementById('section-' + lastSection);
-                if(targetSection) {
-                    targetSection.classList.add('active');
-                    if(lastSection === 'plans') {
-                        loadUserPlans();
-                    }
-                    if(lastSection === 'orders') {
-                        loadUserOrders();
-                    }
-                }
-            }
-        });
-        
-        function toggleMobileSidebar() {
-            var sidebar = document.getElementById('sidebar');
-            var overlay = document.querySelector('.sidebar-overlay');
-            sidebar.classList.toggle('mobile-open');
-            overlay.classList.toggle('show');
         }
 
         async function handleLogout() {
             if (!confirm('\u786e\u5b9a\u8981\u9000\u51fa\u767b\u5f55\u5417\uff1f')) return;
-            
-            // 清除保存的标签状态
-            localStorage.removeItem('userCurrentSection');
             
             try {
                 const response = await fetch('/api/user/logout', {
@@ -3742,74 +3494,6 @@ async function renderUserDashboard(env, userInfo) {
                 }
             } catch(e) {
                 showToast('\u274c \u7b7e\u5230\u5931\u8d25: ' + e.message);
-            }
-        }
-        
-        async function loadUserOrders() {
-            try {
-                const res = await fetch('/api/user/orders');
-                const data = await res.json();
-                
-                const container = document.getElementById('userOrdersList');
-                if(!container) return;
-                
-                if(!data.success || data.orders.length === 0) {
-                    container.innerHTML = '<div class="card"><p style="text-align:center;color:#999;padding:40px 0;">暂无订单记录</p></div>';
-                    return;
-                }
-                
-                var html = '';
-                for(var i = 0; i < data.orders.length; i++) {
-                    var o = data.orders[i];
-                    var statusColor = '#faad14';
-                    var statusText = '待审核';
-                    if(o.status === 'approved') {
-                        statusColor = '#52c41a';
-                        statusText = '已通过';
-                    } else if(o.status === 'rejected') {
-                        statusColor = '#ff4d4f';
-                        statusText = '已拒绝';
-                    }
-                    var createTime = new Date(o.created_at).toLocaleString('zh-CN');
-                    var paidTime = o.paid_at ? new Date(o.paid_at).toLocaleString('zh-CN') : '-';
-                    
-                    html += '<div class="card" style="margin-bottom:15px;">';
-                    html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:15px;">';
-                    html += '<div>';
-                    html += '<h3 style="margin:0 0 10px 0;color:#333;">订单 #' + o.id + '</h3>';
-                    html += '<p style="color:#666;margin:5px 0;">📦 套餐：' + o.plan_name + ' (' + o.duration_days + '天)</p>';
-                    html += '<p style="color:#666;margin:5px 0;">💰 金额：￥' + (o.amount || 0) + '</p>';
-                    html += '<p style="color:#999;font-size:13px;margin:5px 0;">🕒 下单时间：' + createTime + '</p>';
-                    if(o.status === 'approved') {
-                        html += '<p style="color:#999;font-size:13px;margin:5px 0;">✅ 审核时间：' + paidTime + '</p>';
-                    }
-                    html += '</div>';
-                    html += '<span style="padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:' + statusColor + '20;color:' + statusColor + ';border:1px solid ' + statusColor + ';">' + statusText + '</span>';
-                    html += '</div>';
-                    
-                    if(o.status === 'pending') {
-                        html += '<div style="padding:12px;background:#fff7e6;border:1px solid #ffd591;border-radius:8px;color:#d46b08;font-size:13px;">';
-                        html += '⏳ 订单已提交，请耐心等待管理员审核';
-                        html += '</div>';
-                    } else if(o.status === 'approved') {
-                        html += '<div style="padding:12px;background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;color:#52c41a;font-size:13px;">';
-                        html += '✅ 订单已通过，套餐时长已增加到您的账号';
-                        html += '</div>';
-                    } else if(o.status === 'rejected') {
-                        html += '<div style="padding:12px;background:#fff1f0;border:1px solid #ffa39e;border-radius:8px;color:#ff4d4f;font-size:13px;">';
-                        html += '❌ 订单已被拒绝，请联系管理员了解原因';
-                        html += '</div>';
-                    }
-                    
-                    html += '</div>';
-                }
-                container.innerHTML = html;
-            } catch(e) {
-                console.error('加载订单失败:', e);
-                var container = document.getElementById('userOrdersList');
-                if(container) {
-                    container.innerHTML = '<div class="card"><p style="text-align:center;color:#ff4d4f;padding:40px 0;">加载订单失败，请刷新页面重试</p></div>';
-                }
             }
         }
         
@@ -3929,37 +3613,7 @@ async function renderUserDashboard(env, userInfo) {
 
 // ==================== 套餐管理 API ====================
 
-// 管理员获取所有套餐（包括禁用的）
-async function handleAdminGetPlans(request, env) {
-    if (!(await checkAuth(request, env))) {
-        return new Response(JSON.stringify({ error: '未授权' }), { 
-            status: 401, 
-            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-        });
-    }
-    
-    try {
-        const plans = await env.DB.prepare(
-            "SELECT * FROM subscription_plans ORDER BY duration_days ASC"
-        ).all();
-        
-        return new Response(JSON.stringify({ 
-            success: true, 
-            plans: plans.results || [] 
-        }), { 
-            status: 200, 
-            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-        });
-    } catch (e) {
-        console.error('管理员获取套餐错误:', e);
-        return new Response(JSON.stringify({ error: '服务器错误' }), { 
-            status: 500, 
-            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-        });
-    }
-}
-
-// 获取启用的套餐（用户端）
+// 获取所有套餐（公开接口）
 async function handleGetPlans(request, env) {
     try {
         const plans = await env.DB.prepare(
@@ -4122,20 +3776,6 @@ async function handleAdminDeletePlan(request, env) {
             });
         }
         
-        // 检查是否有订单引用此套餐
-        const ordersCount = await env.DB.prepare(
-            "SELECT COUNT(*) as count FROM orders WHERE plan_id = ?"
-        ).bind(id).first();
-        
-        if (ordersCount && ordersCount.count > 0) {
-            return new Response(JSON.stringify({ 
-                error: '无法删除：该套餐已有 ' + ordersCount.count + ' 个订单引用，请先处理相关订单' 
-            }), { 
-                status: 400, 
-                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-            });
-        }
-        
         await env.DB.prepare("DELETE FROM subscription_plans WHERE id = ?").bind(id).run();
         
         return new Response(JSON.stringify({ success: true, message: '套餐删除成功' }), { 
@@ -4144,74 +3784,6 @@ async function handleAdminDeletePlan(request, env) {
         });
     } catch (e) {
         console.error('删除套餐错误:', e);
-        return new Response(JSON.stringify({ error: '服务器错误: ' + e.message }), { 
-            status: 500, 
-            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-        });
-    }
-}
-
-// 用户获取自己的订单列表
-async function handleUserGetOrders(request, env) {
-    try {
-        const cookie = request.headers.get('Cookie');
-        if (!cookie) {
-            return new Response(JSON.stringify({ error: '未登录' }), { 
-                status: 401, 
-                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-            });
-        }
-
-        const match = cookie.match(/user_session=([^;]+)/);
-        if (!match) {
-            return new Response(JSON.stringify({ error: '未登录' }), { 
-                status: 401, 
-                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-            });
-        }
-
-        const session = await dbValidateSession(env, match[1]);
-        if (!session) {
-            return new Response(JSON.stringify({ error: '会话已过期' }), { 
-                status: 401, 
-                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-            });
-        }
-
-        const user = await dbGetUserById(env, session.user_id);
-        if (!user) {
-            return new Response(JSON.stringify({ error: '用户不存在' }), { 
-                status: 404, 
-                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-            });
-        }
-
-        // 获取该用户的所有订单
-        const orders = await env.DB.prepare(`
-            SELECT 
-                o.id, 
-                o.plan_id, 
-                o.amount, 
-                o.status, 
-                o.created_at, 
-                o.paid_at,
-                sp.name as plan_name,
-                sp.duration_days
-            FROM orders o
-            LEFT JOIN subscription_plans sp ON o.plan_id = sp.id
-            WHERE o.user_id = ?
-            ORDER BY o.created_at DESC
-        `).bind(user.id).all();
-
-        return new Response(JSON.stringify({ 
-            success: true, 
-            orders: orders.results || [] 
-        }), { 
-            status: 200, 
-            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
-        });
-    } catch (e) {
-        console.error('获取用户订单错误:', e);
         return new Response(JSON.stringify({ error: '服务器错误' }), { 
             status: 500, 
             headers: { 'Content-Type': 'application/json; charset=utf-8' } 

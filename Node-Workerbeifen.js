@@ -266,36 +266,27 @@ function generateVlessLinks(workerDomain, uuid, userName) {
         // 处理地址和端口（支持 IPv6）
         let address;
         
-        // 检测 IPv6 地址（已经带方括号的格式：[2606:4700::]:443）
-        if (addressPart.startsWith('[')) {
-            // IPv6 地址已经是正确格式，直接使用
-            address = addressPart;
-        } else if (addressPart.includes('[') && addressPart.includes(']')) {
-            // IPv6 格式已经包含方括号
+        // 检测 IPv6 地址（包含多个冒号）
+        const isIPv6 = (addressPart.match(/:/g) || []).length > 1;
+        
+        if (isIPv6) {
+            // IPv6 地址处理
+            const ipv6PortMatch = addressPart.match(/^(.+):(\d+)$/);
+            if (ipv6PortMatch) {
+                // 已有端口: 2606:4700::1:443
+                const ipv6Addr = ipv6PortMatch[1];
+                const port = ipv6PortMatch[2];
+                address = `[${ipv6Addr}]:${port}`;
+            } else {
+                // 无端口，添加默认端口
+                address = `[${addressPart}]:443`;
+            }
+        } else if (addressPart.includes(':')) {
+            // IPv4 或域名，已包含端口
             address = addressPart;
         } else {
-            // 检测是否是裸 IPv6 地址（包含多个冒号但没有方括号）
-            const colonCount = (addressPart.match(/:/g) || []).length;
-            
-            if (colonCount > 1) {
-                // 裸 IPv6 地址
-                const ipv6PortMatch = addressPart.match(/^(.+):(\d+)$/);
-                if (ipv6PortMatch && !isNaN(ipv6PortMatch[2])) {
-                    // 有端口: 2606:4700::1:443
-                    const ipv6Addr = ipv6PortMatch[1];
-                    const port = ipv6PortMatch[2];
-                    address = `[${ipv6Addr}]:${port}`;
-                } else {
-                    // 无端口，添加默认端口
-                    address = `[${addressPart}]:443`;
-                }
-            } else if (addressPart.includes(':')) {
-                // IPv4 或域名，已包含端口
-                address = addressPart;
-            } else {
-                // IPv4 或域名，没有端口，添加默认端口 443
-                address = `${addressPart}:443`;
-            }
+            // IPv4 或域名，没有端口，添加默认端口 443
+            address = `${addressPart}:443`;
         }
         
         // 生成节点名称（不显示"未命名"前缀）
