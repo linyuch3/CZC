@@ -1180,16 +1180,25 @@ async function handleAdminSaveSettings(request, env) {
   return new Response('OK', { status: 200 });
 }
 
-// API: 更新系统设置（注册开关等）
+// API: 更新系统设置（注册开关、自动审核开关等）
 async function handleAdminUpdateSystemSettings(request, env) {
   if (!(await checkAuth(request, env))) return new Response('Unauthorized', { status: 401 });
   const formData = await request.formData();
   
   const enableRegister = formData.get('enableRegister') === 'true';
+  const autoApproveOrder = formData.get('autoApproveOrder') === 'true';
 
   // 获取现有设置
   const currentSettings = await dbGetSettings(env) || {};
+  const wasAutoApproveEnabled = currentSettings.autoApproveOrder === true;
+  
   currentSettings.enableRegister = enableRegister;
+  currentSettings.autoApproveOrder = autoApproveOrder;
+  
+  // 如果自动审核开关从关闭变为开启，增加版本号（刷新所有用户的使用次数）
+  if (!wasAutoApproveEnabled && autoApproveOrder) {
+    currentSettings.autoApproveVersion = (currentSettings.autoApproveVersion || 0) + 1;
+  }
   
   await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
     .bind(SYSTEM_CONFIG_KEY, JSON.stringify(currentSettings))
@@ -1345,7 +1354,7 @@ async function handleAdminPanel(request, env, adminPath) {
     <!DOCTYPE html>
     <html lang="zh-CN">
     <head>
-      <title>VLESS 控制面板 (D1版)</title>
+      <title>vless-snippets 控制面板</title>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
@@ -1516,7 +1525,7 @@ async function handleAdminPanel(request, env, adminPath) {
         <!-- 左侧导航 -->
         <div class="sidebar" id="admin-sidebar">
           <div class="sidebar-header">
-            <h1>VLESS 控制面板</h1>
+            <h1>vless-snippets</h1>
             <div class="date">${new Date().toLocaleDateString('zh-CN')}</div>
             <button onclick="adminLogout()" style="margin-top:10px;width:100%;padding:8px;background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:4px;cursor:pointer;font-size:13px;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🚪 退出登录</button>
           </div>
@@ -1563,7 +1572,7 @@ async function handleAdminPanel(request, env, adminPath) {
             <div class="content-body">
               <div class="card">
                 <h3 style="margin-bottom:15px;">系统设置</h3>
-                <div style="padding:15px;background:#f8f9fa;border-radius:8px;margin-bottom:20px;">
+                <div style="padding:15px;background:#f8f9fa;border-radius:8px;margin-bottom:15px;">
                   <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
                     <div>
                       <span style="font-weight:600;display:block;margin-bottom:4px;">开放用户注册</span>
@@ -1571,9 +1580,23 @@ async function handleAdminPanel(request, env, adminPath) {
                         开启后，用户可以自助注册账号；关闭后，只能由管理员手动添加用户
                       </div>
                     </div>
-                    <div class="switch" onclick="toggleSwitch(event)">
+                    <div class="switch" onclick="toggleSwitch(event, 'enableRegisterCheck')">
                       <input type="checkbox" id="enableRegisterCheck" ${settings.enableRegister ? 'checked' : ''} onchange="updateSystemSettings()" style="display:none;">
                       <span class="slider" style="background:${settings.enableRegister ? '#52c41a' : '#d9d9d9'};"></span>
+                    </div>
+                  </label>
+                </div>
+                <div style="padding:15px;background:#fff7e6;border-radius:8px;margin-bottom:20px;">
+                  <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+                    <div>
+                      <span style="font-weight:600;display:block;margin-bottom:4px;">自动审核订单</span>
+                      <div style="font-size:13px;color:#666;">
+                        开启后，用户订购套餐将自动审核通过并延长时长；每个用户同时只能有一个待处理订单，防止刷时间
+                      </div>
+                    </div>
+                    <div class="switch" onclick="toggleSwitch(event, 'autoApproveOrderCheck')">
+                      <input type="checkbox" id="autoApproveOrderCheck" ${settings.autoApproveOrder ? 'checked' : ''} onchange="updateSystemSettings()" style="display:none;">
+                      <span class="slider" style="background:${settings.autoApproveOrder ? '#52c41a' : '#d9d9d9'};"></span>
                     </div>
                   </label>
                 </div>
@@ -2004,9 +2027,9 @@ async function handleAdminPanel(request, env, adminPath) {
           }
         }
         
-        function toggleSwitch(event) {
+        function toggleSwitch(event, checkboxId) {
           event.preventDefault();
-          const checkbox = document.getElementById('enableRegisterCheck');
+          const checkbox = document.getElementById(checkboxId);
           checkbox.checked = !checkbox.checked;
           const slider = event.currentTarget.querySelector('.slider');
           slider.style.background = checkbox.checked ? '#52c41a' : '#d9d9d9';
@@ -2015,8 +2038,10 @@ async function handleAdminPanel(request, env, adminPath) {
         
         async function updateSystemSettings() {
           const enableRegister = document.getElementById('enableRegisterCheck').checked;
+          const autoApproveOrder = document.getElementById('autoApproveOrderCheck').checked;
           const fd = new FormData();
           fd.append('enableRegister', enableRegister);
+          fd.append('autoApproveOrder', autoApproveOrder);
           
           try {
             const res = await fetch('/api/admin/updateSystemSettings', { method: 'POST', body: fd });
@@ -2369,14 +2394,16 @@ async function handleAdminPanel(request, env, adminPath) {
               var username = escapeHtml(o.username);
               var planName = escapeHtml(o.plan_name);
               var createTime = new Date(o.created_at).toLocaleString('zh-CN');
+              var expiryTime = o.user_expiry ? new Date(o.user_expiry).toLocaleString('zh-CN') : '\u6c38\u4e45\u6709\u6548';
               
               html += '<div class="user-row" style="padding:15px;margin-bottom:10px;">';
               html += '<div style="flex:1;">';
               html += '<strong>\u8ba2\u5355 #' + o.id + '</strong>';
               html += '<p style="color:#666;font-size:13px;margin:5px 0;">\u7528\u6237\uff1a' + username + ' | \u5957\u9910\uff1a' + planName + ' (' + o.duration_days + '\u5929)</p>';
               html += '<p style="color:#999;font-size:12px;">\u521b\u5efa\u65f6\u95f4\uff1a' + createTime + '</p>';
+              html += '<p style="color:#1890ff;font-size:12px;">\u8ba2\u9605\u5230\u671f\uff1a' + expiryTime + '</p>';
               html += '<span class="badge" style="background:#faad14;">\u5f85\u5ba1\u6838</span>';
-              html += '</div>';
+              html += '</div>'
               html += '<div class="user-actions">';
               html += '<button onclick="approveOrder(' + o.id + ')" class="btn-primary" style="padding:5px 12px;background:#52c41a;">\u901a\u8fc7</button>';
               html += '<button onclick="rejectOrder(' + o.id + ')" class="btn-primary" style="padding:5px 12px;background:#ff4d4f;">\u62d2\u7edd</button>';
@@ -2628,6 +2655,10 @@ function renderAdminLoginPage(env, adminPath) {
 </head>
 <body>
     <div class="container">
+        <div style="text-align:center;margin-bottom:20px;padding:15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:8px;color:white;">
+            <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ vless-snippets</h2>
+            <p style="margin:0;font-size:13px;opacity:0.9;">轻量级 VLESS 订阅管理系统</p>
+        </div>
         <h2>🔐 管理员登录</h2>
         <p class="subtitle">登录管理后台</p>
         
@@ -2972,6 +3003,10 @@ async function renderAuthPage(env) {
         <div class="form-container">
             <!-- 登录表单 -->
             <div class="form-section active" id="login-section">
+                <div style="text-align:center;margin-bottom:20px;padding:15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:8px;color:white;">
+                    <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ vless-snippets</h2>
+                    <p style="margin:0;font-size:13px;opacity:0.9;">轻量级 VLESS 订阅服务</p>
+                </div>
                 <h2>🔐 用户登录</h2>
                 <p class="subtitle">登录您的账号以管理订阅</p>
                 
@@ -2992,6 +3027,10 @@ async function renderAuthPage(env) {
             
             <!-- 注册表单 -->
             <div class="form-section" id="register-section">
+                <div style="text-align:center;margin-bottom:20px;padding:15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:8px;color:white;">
+                    <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ vless-snippets</h2>
+                    <p style="margin:0;font-size:13px;opacity:0.9;">轻量级 VLESS 订阅服务</p>
+                </div>
                 <h2>📝 用户注册</h2>
                 <p class="subtitle">创建新账号开始使用</p>
                 
@@ -3162,7 +3201,7 @@ async function renderUserDashboard(env, userInfo) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VLESS 用户面板</title>
+    <title>vless-snippets 用户面板</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -3553,7 +3592,7 @@ async function renderUserDashboard(env, userInfo) {
         <!-- 左侧导航 -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h1>VLESS 用户面板</h1>
+                <h1>vless-snippets</h1>
                 <div class="user-info-mini">
                     ${userInfo.username}<br>
                     ${new Date().toLocaleDateString('zh-CN')}
@@ -3603,36 +3642,9 @@ async function renderUserDashboard(env, userInfo) {
                     <div class="info-value">${createdDate}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">到期时间</div>
+                    <div class="info-label">订阅到期时间</div>
                     <div class="info-value">${expiryText}</div>
                 </div>
-            </div>
-        </div>
-
-        <!-- 每日签到 -->
-        <div class="card">
-            <h2>📅 每日签到</h2>
-            <p style="color:#666;margin-bottom:15px;">每日签到可获得1天使用时长奖励</p>
-            <button onclick="userCheckin()" class="copy-btn" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);padding:12px 40px;font-size:16px;">✨ 立即签到</button>
-        </div>
-
-        <!-- 修改密码 -->
-        <div class="card">
-            <h2>🔒 修改密码</h2>
-            <div style="max-width: 400px;">
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">旧密码</label>
-                    <input type="password" id="oldPassword" placeholder="请输入旧密码" style="width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px;">
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">新密码</label>
-                    <input type="password" id="newPassword" placeholder="请输入新密码" style="width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px;">
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">确认新密码</label>
-                    <input type="password" id="confirmPassword" placeholder="请再次输入新密码" style="width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px;">
-                </div>
-                <button class="copy-btn" onclick="changeUserPassword()" style="margin-top: 10px;">🔄 修改密码</button>
             </div>
         </div>
 
@@ -3689,6 +3701,33 @@ async function renderUserDashboard(env, userInfo) {
                 </div>
             </div>
             `}
+        </div>
+
+        <!-- 每日签到 -->
+        <div class="card">
+            <h2>📅 每日签到</h2>
+            <p style="color:#666;margin-bottom:15px;">每日签到可获得1天使用时长奖励</p>
+            <button onclick="userCheckin()" class="copy-btn" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);padding:12px 40px;font-size:16px;">✨ 立即签到</button>
+        </div>
+
+        <!-- 修改密码 -->
+        <div class="card">
+            <h2>🔒 修改密码</h2>
+            <div style="max-width: 400px;">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">旧密码</label>
+                    <input type="password" id="oldPassword" placeholder="请输入旧密码" style="width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">新密码</label>
+                    <input type="password" id="newPassword" placeholder="请输入新密码" style="width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">确认新密码</label>
+                    <input type="password" id="confirmPassword" placeholder="请再次输入新密码" style="width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px;">
+                </div>
+                <button class="copy-btn" onclick="changeUserPassword()" style="margin-top: 10px;">🔄 修改密码</button>
+            </div>
         </div>
                 </div>
             </div>
@@ -4481,6 +4520,25 @@ async function handleUserCreateOrder(request, env) {
             });
         }
         
+        // 获取系统设置，检查是否开启自动审核
+        const settings = await dbGetSettings(env) || {};
+        const autoApproveEnabled = settings.autoApproveOrder === true;
+        const autoApproveVersion = settings.autoApproveVersion || 0; // 用于追踪开关重置次数
+        
+        // 检查用户是否可以使用自动审核
+        let canAutoApprove = false;
+        if (autoApproveEnabled) {
+            // 检查用户账户中的自动审核版本号
+            const userAccount = await env.DB.prepare(
+                "SELECT auto_approve_version FROM user_accounts WHERE id = ?"
+            ).bind(session.user_id).first();
+            
+            // 如果用户的版本号小于当前系统版本号，说明可以使用本轮自动审核
+            if (!userAccount || userAccount.auto_approve_version < autoApproveVersion) {
+                canAutoApprove = true;
+            }
+        }
+        
         const plan = await env.DB.prepare(
             "SELECT * FROM subscription_plans WHERE id = ? AND enabled = 1"
         ).bind(planId).first();
@@ -4492,13 +4550,69 @@ async function handleUserCreateOrder(request, env) {
             });
         }
         
-        await env.DB.prepare(
-            "INSERT INTO orders (user_id, plan_id, amount, status, created_at) VALUES (?, ?, ?, 'pending', ?)"
-        ).bind(session.user_id, planId, plan.price, Date.now()).run();
+        // 创建订单
+        const now = Date.now();
+        const orderStatus = canAutoApprove ? 'approved' : 'pending';
+        const result = await env.DB.prepare(
+            "INSERT INTO orders (user_id, plan_id, amount, status, created_at) VALUES (?, ?, ?, ?, ?)"
+        ).bind(session.user_id, planId, plan.price, orderStatus, now).run();
+        
+        // 如果可以自动审核，直接延长用户有效期
+        if (canAutoApprove) {
+            const user = await dbGetUserById(env, session.user_id);
+            if (user && user.uuid) {
+                const uuidUser = await env.DB.prepare(
+                    "SELECT * FROM users WHERE uuid = ?"
+                ).bind(user.uuid).first();
+                
+                if (uuidUser) {
+                    // 修复到期时间计算逻辑：
+                    // 1. 如果当前是永久有效(null)，从现在开始计算
+                    // 2. 如果当前已过期，从现在开始计算
+                    // 3. 如果当前未过期，从到期时间累加
+                    let baseTime;
+                    if (!uuidUser.expiry) {
+                        // 永久有效的情况，从现在开始计算
+                        baseTime = now;
+                    } else if (uuidUser.expiry < now) {
+                        // 已过期，从现在开始计算
+                        baseTime = now;
+                    } else {
+                        // 未过期，从到期时间累加
+                        baseTime = uuidUser.expiry;
+                    }
+                    
+                    // 修复：使用正确的字段名 duration_days
+                    const newExpiry = baseTime + (plan.duration_days * 24 * 60 * 60 * 1000);
+                    
+                    await env.DB.prepare(
+                        "UPDATE users SET expiry = ?, enabled = 1 WHERE uuid = ?"
+                    ).bind(newExpiry, user.uuid).run();
+                }
+            }
+            
+            // 记录用户已使用本轮自动审核
+            await env.DB.prepare(
+                "UPDATE user_accounts SET auto_approve_version = ? WHERE id = ?"
+            ).bind(autoApproveVersion, session.user_id).run();
+            
+            return new Response(JSON.stringify({ 
+                success: true, 
+                message: '订单已自动审核通过，服务时长已延长' 
+            }), { 
+                status: 200, 
+                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+            });
+        }
+        
+        // 如果开启了自动审核但用户已使用过，提示用户订单已提交等待审核
+        const message = autoApproveEnabled 
+            ? '您已使用过自动审核，订单已提交，请等待管理员审核' 
+            : '订单创建成功，请等待管理员审核';
         
         return new Response(JSON.stringify({ 
             success: true, 
-            message: '订单创建成功，请等待管理员审核' 
+            message: message 
         }), { 
             status: 200, 
             headers: { 'Content-Type': 'application/json; charset=utf-8' } 
@@ -4563,10 +4677,12 @@ async function handleAdminGetOrders(request, env) {
                 o.paid_at,
                 ua.username,
                 sp.name as plan_name,
-                sp.duration_days
+                sp.duration_days,
+                u.expiry as user_expiry
             FROM orders o
             LEFT JOIN user_accounts ua ON o.user_id = ua.id
             LEFT JOIN subscription_plans sp ON o.plan_id = sp.id
+            LEFT JOIN users u ON ua.uuid = u.uuid
             ORDER BY o.created_at DESC
         `).all();
         
