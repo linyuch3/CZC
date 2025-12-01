@@ -1270,6 +1270,20 @@ async function handleAdminUpdateSystemSettings(request, env) {
     currentSettings.paymentOrderExpiry = parseInt(formData.get('paymentOrderExpiry')) || 15;
   }
   
+  // 更新自定义链接设置
+  if (formData.has('customLink1Name')) {
+    currentSettings.customLink1Name = formData.get('customLink1Name') || '';
+  }
+  if (formData.has('customLink1Url')) {
+    currentSettings.customLink1Url = formData.get('customLink1Url') || '';
+  }
+  if (formData.has('customLink2Name')) {
+    currentSettings.customLink2Name = formData.get('customLink2Name') || '';
+  }
+  if (formData.has('customLink2Url')) {
+    currentSettings.customLink2Url = formData.get('customLink2Url') || '';
+  }
+  
   // 更新公告设置
   if (formData.has('announcementTitle') || formData.has('announcementContent')) {
     currentSettings.announcementTitle = formData.get('announcementTitle') || '';
@@ -1714,6 +1728,30 @@ async function handleAdminPanel(request, env, adminPath) {
                         <option value="60" ${settings.paymentOrderExpiry == 60 ? 'selected' : ''}>1小时</option>
                         <option value="120" ${settings.paymentOrderExpiry == 120 ? 'selected' : ''}>2小时</option>
                       </select>
+                    </div>
+                  </div>
+                </div>
+                <div style="padding:15px;background:#e6fffb;border-radius:8px;margin-bottom:15px;">
+                  <div style="margin-bottom:12px;">
+                    <span style="font-weight:600;display:block;margin-bottom:4px;">🔗 用户前端快捷链接</span>
+                    <div style="font-size:13px;color:#666;">配置用户面板右上角显示的快捷链接（如TG客服、官方群组等）</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+                    <div>
+                      <label style="font-size:13px;color:#666;display:block;margin-bottom:5px;">链接1 名称</label>
+                      <input type="text" id="customLink1Name" value="${settings.customLink1Name || ''}" onchange="updateSystemSettings()" placeholder="例如：TG客服" style="width:100%;padding:8px;border:1px solid #d9d9d9;border-radius:4px;">
+                    </div>
+                    <div>
+                      <label style="font-size:13px;color:#666;display:block;margin-bottom:5px;">链接1 地址</label>
+                      <input type="text" id="customLink1Url" value="${settings.customLink1Url || ''}" onchange="updateSystemSettings()" placeholder="例如：https://t.me/ikun_cloudbot" style="width:100%;padding:8px;border:1px solid #d9d9d9;border-radius:4px;">
+                    </div>
+                    <div>
+                      <label style="font-size:13px;color:#666;display:block;margin-bottom:5px;">链接2 名称</label>
+                      <input type="text" id="customLink2Name" value="${settings.customLink2Name || ''}" onchange="updateSystemSettings()" placeholder="例如：官方群组" style="width:100%;padding:8px;border:1px solid #d9d9d9;border-radius:4px;">
+                    </div>
+                    <div>
+                      <label style="font-size:13px;color:#666;display:block;margin-bottom:5px;">链接2 地址</label>
+                      <input type="text" id="customLink2Url" value="${settings.customLink2Url || ''}" onchange="updateSystemSettings()" placeholder="例如：https://t.me/ikun_cloud" style="width:100%;padding:8px;border:1px solid #d9d9d9;border-radius:4px;">
                     </div>
                   </div>
                 </div>
@@ -2317,11 +2355,19 @@ async function handleAdminPanel(request, env, adminPath) {
           const autoApproveOrder = document.getElementById('autoApproveOrderCheck').checked;
           const pendingOrderExpiry = document.getElementById('pendingOrderExpiry').value;
           const paymentOrderExpiry = document.getElementById('paymentOrderExpiry').value;
+          const customLink1Name = document.getElementById('customLink1Name').value;
+          const customLink1Url = document.getElementById('customLink1Url').value;
+          const customLink2Name = document.getElementById('customLink2Name').value;
+          const customLink2Url = document.getElementById('customLink2Url').value;
           const fd = new FormData();
           fd.append('enableRegister', enableRegister);
           fd.append('autoApproveOrder', autoApproveOrder);
           fd.append('pendingOrderExpiry', pendingOrderExpiry);
           fd.append('paymentOrderExpiry', paymentOrderExpiry);
+          fd.append('customLink1Name', customLink1Name);
+          fd.append('customLink1Url', customLink1Url);
+          fd.append('customLink2Name', customLink2Name);
+          fd.append('customLink2Url', customLink2Url);
           
           try {
             const res = await fetch('/api/admin/updateSystemSettings', { method: 'POST', body: fd });
@@ -3971,6 +4017,12 @@ async function renderUserDashboard(env, userInfo) {
     const subUrl = settings.subUrl || "";
     const adminPath = env.ADMIN_PATH || '/admin';
     
+    // 获取自定义链接配置
+    const customLink1Name = settings.customLink1Name || "";
+    const customLink1Url = settings.customLink1Url || "";
+    const customLink2Name = settings.customLink2Name || "";
+    const customLink2Url = settings.customLink2Url || "";
+    
     const apiBaseUrl = 'https://url.v1.mk/sub';
     const originalSubUrl = subUrl + '/' + userInfo.uuid;
     const clashUrl = apiBaseUrl + '?target=clash&url=' + encodeURIComponent(originalSubUrl);
@@ -3991,6 +4043,15 @@ async function renderUserDashboard(env, userInfo) {
     } else if (!userInfo.enabled) {
         statusClass = 'status-disabled';
         statusText = '⚠️ 已禁用';
+    }
+    
+    // 生成自定义链接 HTML
+    let customLinksHtml = '';
+    if (customLink1Name && customLink1Url) {
+        customLinksHtml += `<a href="${customLink1Url}" target="_blank" class="custom-link">${customLink1Name}</a>`;
+    }
+    if (customLink2Name && customLink2Url) {
+        customLinksHtml += `<a href="${customLink2Url}" target="_blank" class="custom-link">${customLink2Name}</a>`;
     }
     
     return new Response(`<!DOCTYPE html>
@@ -4376,6 +4437,37 @@ async function renderUserDashboard(env, userInfo) {
                 padding-left: 70px;
             }
         }
+        
+        /* 自定义链接样式 */
+        .custom-links {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .custom-link {
+            padding: 6px 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .custom-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        @media (max-width: 768px) {
+            .custom-links {
+                flex-wrap: wrap;
+            }
+            .custom-link {
+                padding: 5px 10px;
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -4418,9 +4510,12 @@ async function renderUserDashboard(env, userInfo) {
             <div id="section-account" class="section active">
                 <div class="content-header">
                     <h2>📊 账号信息</h2>
-                    <button onclick="viewAllAnnouncements()" style="padding:8px 16px;background:#1890ff;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:6px;">
-                        📢 查看公告
-                    </button>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <div class="custom-links">${customLinksHtml}</div>
+                        <button onclick="viewAllAnnouncements()" style="padding:8px 16px;background:#1890ff;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:6px;">
+                            📢 查看公告
+                        </button>
+                    </div>
                 </div>
                 <div class="content-body">
                     <div class="card">
@@ -6176,11 +6271,17 @@ async function handleUserCheckin(request, env) {
             });
         }
         
-        // 简单实现：使用last_login作为签到时间记录
-        const today = new Date().toDateString();
-        const lastDate = user.last_login ? new Date(user.last_login).toDateString() : null;
+        // 使用北京时间判断是否为同一天
+        const now = new Date();
+        const beijingNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+        const todayBeijing = beijingNow.toISOString().split('T')[0]; // YYYY-MM-DD 格式
         
-        if (lastDate === today) {
+        // 从 settings 中获取用户签到记录
+        const settings = await dbGetSettings(env) || {};
+        const checkinRecords = settings.userCheckinRecords || {};
+        const userCheckinDate = checkinRecords[user.uuid];
+        
+        if (userCheckinDate === todayBeijing) {
             return new Response(JSON.stringify({ error: '今天已经签到过了' }), { 
                 status: 400, 
                 headers: { 'Content-Type': 'application/json; charset=utf-8' } 
@@ -6195,9 +6296,13 @@ async function handleUserCheckin(request, env) {
             "UPDATE users SET expiry = ? WHERE uuid = ?"
         ).bind(newExpiry, user.uuid).run();
         
-        await env.DB.prepare(
-            "UPDATE user_accounts SET last_login = ? WHERE id = ?"
-        ).bind(Date.now(), user.id).run();
+        // 更新签到记录
+        checkinRecords[user.uuid] = todayBeijing;
+        settings.userCheckinRecords = checkinRecords;
+        
+        await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+            .bind(SYSTEM_CONFIG_KEY, JSON.stringify(settings))
+            .run();
         
         return new Response(JSON.stringify({ 
             success: true, 
