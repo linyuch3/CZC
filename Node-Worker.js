@@ -264,7 +264,7 @@ function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
     
     // 格式化到期时间
     function formatExpiry(timestamp) {
-        if (!timestamp) return '永久有效';
+        if (!timestamp) return '未激活';
         const d = new Date(timestamp);
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');

@@ -117,6 +117,8 @@ export default {
       // 支付通道
       if (path === '/api/admin/payment/channels') return await handleAdminGetPaymentChannels(request, env);
       if (path === '/api/payment/channels') return await handleGetPaymentChannels(request, env);
+      // 获取用户关联的前端账号
+      if (path === '/api/admin/getUserAccount') return await handleAdminGetUserAccount(request, env);
     }
     if (request.method === 'GET') {
       if (path === '/api/user/orders') return await handleUserGetOrders(request, env);
@@ -362,8 +364,16 @@ async function handleUserRegister(request, env) {
         const uuid = crypto.randomUUID();
         const passwordHash = await hashPassword(password);
         
-        // 先创建 UUID 用户 - 新用户赠送7天免费试用
-        const expiry = Date.now() + (7 * 24 * 60 * 60 * 1000); // 新用户7天免费试用
+        // 检查是否开启新用户试用
+        const enableTrial = settings.enableTrial === true;
+        const trialDays = settings.trialDays || 7;
+        
+        // 如果开启试用，设置试用期；否则设置为 null（需购买套餐）
+        let expiry = null;
+        if (enableTrial) {
+            expiry = Date.now() + (trialDays * 24 * 60 * 60 * 1000);
+        }
+        
         await env.DB.prepare(
             "INSERT INTO users (uuid, name, expiry, create_at, enabled) VALUES (?, ?, ?, ?, 1)"
         ).bind(uuid, username, expiry, Date.now()).run();
@@ -1126,6 +1136,8 @@ async function handleAdminAdd(request, env) {
   let name = formData.get('name');
   const expiryDateStr = formData.get('expiryDate');
   const customUUIDsInput = formData.get('uuids');
+  let frontUsername = formData.get('frontUsername');
+  let frontPassword = formData.get('frontPassword');
   
   if (!name || name.trim() === "") name = "未命名";
 
@@ -1149,7 +1161,44 @@ async function handleAdminAdd(request, env) {
   
   await env.DB.batch(batch);
 
+  // 如果只有一个 UUID，则创建前端账号
+  if (targetUUIDs.length === 1) {
+    const uuid = targetUUIDs[0];
+    
+    // 生成用户名：留空则随机生成 6 位
+    if (!frontUsername || frontUsername.trim() === '') {
+      frontUsername = generateRandomUsername();
+    } else {
+      frontUsername = frontUsername.trim();
+    }
+    
+    // 密码：留空则与用户名相同
+    if (!frontPassword || frontPassword.trim() === '') {
+      frontPassword = frontUsername;
+    } else {
+      frontPassword = frontPassword.trim();
+    }
+    
+    // 检查用户名是否已存在
+    const existingUser = await dbGetUserByUsername(env, frontUsername);
+    if (!existingUser) {
+      // 创建前端账号
+      const passwordHash = await hashPassword(frontPassword);
+      await dbCreateUserAccount(env, frontUsername, passwordHash, '', uuid);
+    }
+  }
+
   return new Response('OK', { status: 200 });
+}
+
+// 生成随机用户名 (6位字母数字组合)
+function generateRandomUsername() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
 
 // API: 编辑用户
@@ -1160,6 +1209,7 @@ async function handleAdminUpdate(request, env) {
   const uuid = formData.get('uuid');
   const name = formData.get('name');
   const expiryDateStr = formData.get('expiryDate');
+  const newPassword = formData.get('newPassword');
 
   if (!uuid) return new Response('UUID required', { status: 400 });
 
@@ -1173,6 +1223,14 @@ async function handleAdminUpdate(request, env) {
   await env.DB.prepare("UPDATE users SET name = ?, expiry = ? WHERE uuid = ?")
     .bind(name || '未命名', expiry, uuid)
     .run();
+
+  // 如果提供了新密码，更新关联的前端账号密码
+  if (newPassword && newPassword.trim() !== '') {
+    const passwordHash = await hashPassword(newPassword.trim());
+    await env.DB.prepare("UPDATE user_accounts SET password_hash = ? WHERE uuid = ?")
+      .bind(passwordHash, uuid)
+      .run();
+  }
 
   return new Response('OK', { status: 200 });
 }
@@ -1252,10 +1310,14 @@ async function handleAdminUpdateSystemSettings(request, env) {
   if (formData.has('enableRegister')) {
     const enableRegister = formData.get('enableRegister') === 'true';
     const autoApproveOrder = formData.get('autoApproveOrder') === 'true';
+    const enableTrial = formData.get('enableTrial') === 'true';
+    const trialDays = parseInt(formData.get('trialDays')) || 7;
     const wasAutoApproveEnabled = currentSettings.autoApproveOrder === true;
     
     currentSettings.enableRegister = enableRegister;
     currentSettings.autoApproveOrder = autoApproveOrder;
+    currentSettings.enableTrial = enableTrial;
+    currentSettings.trialDays = trialDays;
     
     // 如果自动审核开关从关闭变为开启，增加版本号（刷新所有用户的使用次数）
     if (!wasAutoApproveEnabled && autoApproveOrder) {
@@ -1414,11 +1476,12 @@ async function handleAdminPanel(request, env, adminPath) {
     const isEnabled = u.enabled; 
     
     const expiryDateObj = u.expiry ? new Date(u.expiry) : null;
-    const expiryText = expiryDateObj ? formatBeijingDateTime(u.expiry) : '永久有效';
+    const expiryText = expiryDateObj ? formatBeijingDateTime(u.expiry) : '未激活';
     const expiryVal = expiryDateObj ? formatBeijingDate(u.expiry) : '';
     const createDate = u.createAt ? formatBeijingDateTime(u.createAt) : '-';
     
-    let statusHtml = isExpired ? '<span class="tag expired">已过期</span>' : (!isEnabled ? '<span class="tag disabled">已禁用</span>' : '<span class="tag active">正常</span>');
+    // 状态显示：未激活 > 已过期 > 已禁用 > 正常
+    let statusHtml = !u.expiry ? '<span class="tag disabled">未激活</span>' : (isExpired ? '<span class="tag expired">已过期</span>' : (!isEnabled ? '<span class="tag disabled">已禁用</span>' : '<span class="tag active">正常</span>'));
     const safeName = u.name.replace(/'/g, "\\'");
     
     return `<tr data-uuid="${u.uuid}">
@@ -1707,7 +1770,7 @@ async function handleAdminPanel(request, env, adminPath) {
                     <div>
                       <span style="font-weight:600;display:block;margin-bottom:4px;">自动审核订单</span>
                       <div style="font-size:13px;color:#666;">
-                        开启后，用户订购套餐将自动审核通过并延长时长；每个用户同时只能有一个待处理订单，防止刷时间
+                        开启后，用户订购<b style="color:#ff4d4f;">免费套餐（价格为0）</b>将自动审核通过；付费套餐仍需等待支付或手动审核
                       </div>
                     </div>
                     <div class="switch" onclick="toggleSwitch(event, 'autoApproveOrderCheck')">
@@ -1715,6 +1778,30 @@ async function handleAdminPanel(request, env, adminPath) {
                       <span class="slider" style="background:${settings.autoApproveOrder ? '#52c41a' : '#d9d9d9'};"></span>
                     </div>
                   </label>
+                </div>
+                <div style="padding:15px;background:#f6ffed;border-radius:8px;margin-bottom:15px;">
+                  <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+                    <div>
+                      <span style="font-weight:600;display:block;margin-bottom:4px;">🎁 新用户注册试用</span>
+                      <div style="font-size:13px;color:#666;">
+                        开启后，新注册用户自动获得免费试用时长；关闭后新用户需购买套餐才能使用
+                      </div>
+                    </div>
+                    <div class="switch" onclick="toggleSwitch(event, 'enableTrialCheck')">
+                      <input type="checkbox" id="enableTrialCheck" ${settings.enableTrial ? 'checked' : ''} onchange="updateSystemSettings()" style="display:none;">
+                      <span class="slider" style="background:${settings.enableTrial ? '#52c41a' : '#d9d9d9'};"></span>
+                    </div>
+                  </label>
+                  <div style="margin-top:12px;${settings.enableTrial ? '' : 'opacity:0.5;pointer-events:none;'}">
+                    <label style="font-size:13px;color:#666;display:block;margin-bottom:5px;">试用时长（天）</label>
+                    <select id="trialDays" onchange="updateSystemSettings()" style="width:100%;padding:8px;border:1px solid #d9d9d9;border-radius:4px;">
+                      <option value="1" ${settings.trialDays == 1 ? 'selected' : ''}>1 天</option>
+                      <option value="3" ${settings.trialDays == 3 ? 'selected' : ''}>3 天</option>
+                      <option value="7" ${!settings.trialDays || settings.trialDays == 7 ? 'selected' : ''}>7 天</option>
+                      <option value="14" ${settings.trialDays == 14 ? 'selected' : ''}>14 天</option>
+                      <option value="30" ${settings.trialDays == 30 ? 'selected' : ''}>30 天</option>
+                    </select>
+                  </div>
                 </div>
                 <div style="padding:15px;background:#f0f5ff;border-radius:8px;margin-bottom:15px;">
                   <div style="margin-bottom:12px;">
@@ -2042,6 +2129,10 @@ async function handleAdminPanel(request, env, adminPath) {
           <div><label>备注名称</label><input type="text" id="name" placeholder="默认 '未命名'"></div>
           <div><label>到期时间</label><input type="date" id="expiryDate"></div>
         </div>
+        <div class="grid" style="margin-top:10px">
+          <div><label>前端用户名 <span style="color:#999;font-size:12px;">(留空随机生成)</span></label><input type="text" id="frontUsername" placeholder="留空随机生成6位用户名"></div>
+          <div><label>前端密码 <span style="color:#999;font-size:12px;">(留空与用户名相同)</span></label><input type="text" id="frontPassword" placeholder="留空默认与用户名相同"></div>
+        </div>
         <div style="margin-top:10px"><label>自定义 UUID (可选)</label><textarea id="uuids" style="min-height:60px" placeholder="留空自动生成"></textarea></div>
         <div style="margin-top:15px;"><button onclick="addUser()" id="addBtn" class="btn-primary">生成 / 添加用户</button></div>
       </div>
@@ -2075,7 +2166,12 @@ async function handleAdminPanel(request, env, adminPath) {
           <input type="hidden" id="editUuid">
           <div style="margin-bottom:15px"><label>UUID</label><input type="text" id="editUuidDisplay" disabled style="background:#f5f5f5;color:#999"></div>
           <div style="margin-bottom:15px"><label>备注名称</label><input type="text" id="editName"></div>
-          <div style="margin-bottom:20px"><label>到期时间</label><input type="date" id="editExpiryDate"></div>
+          <div style="margin-bottom:15px"><label>到期时间</label><input type="date" id="editExpiryDate"></div>
+          <div style="margin-bottom:15px;padding:15px;background:#f9f9f9;border-radius:8px;border:1px solid #e8e8e8;">
+            <div style="margin-bottom:10px;font-weight:600;color:#666;">📝 前端账号管理</div>
+            <div id="editAccountInfo" style="margin-bottom:10px;font-size:13px;color:#999;">加载中...</div>
+            <div style="margin-bottom:10px"><label>新密码 <span style="color:#999;font-size:12px;">(留空不修改)</span></label><input type="text" id="editNewPassword" placeholder="输入新密码，留空则不修改"></div>
+          </div>
           <div style="text-align:right;"><button onclick="closeEdit()" style="background:#999;margin-right:10px">取消</button><button onclick="saveUserEdit()" id="editSaveBtn" class="btn-primary">保存</button></div>
         </div>
       </div>
@@ -2375,6 +2471,8 @@ async function handleAdminPanel(request, env, adminPath) {
           const siteName = document.getElementById('siteNameInput').value;
           const enableRegister = document.getElementById('enableRegisterCheck').checked;
           const autoApproveOrder = document.getElementById('autoApproveOrderCheck').checked;
+          const enableTrial = document.getElementById('enableTrialCheck').checked;
+          const trialDays = document.getElementById('trialDays').value;
           const pendingOrderExpiry = document.getElementById('pendingOrderExpiry').value;
           const paymentOrderExpiry = document.getElementById('paymentOrderExpiry').value;
           const customLink1Name = document.getElementById('customLink1Name').value;
@@ -2385,12 +2483,21 @@ async function handleAdminPanel(request, env, adminPath) {
           fd.append('siteName', siteName);
           fd.append('enableRegister', enableRegister);
           fd.append('autoApproveOrder', autoApproveOrder);
+          fd.append('enableTrial', enableTrial);
+          fd.append('trialDays', trialDays);
           fd.append('pendingOrderExpiry', pendingOrderExpiry);
           fd.append('paymentOrderExpiry', paymentOrderExpiry);
           fd.append('customLink1Name', customLink1Name);
           fd.append('customLink1Url', customLink1Url);
           fd.append('customLink2Name', customLink2Name);
           fd.append('customLink2Url', customLink2Url);
+          
+          // 更新试用天数选择器的禁用状态
+          const trialDaysSelect = document.getElementById('trialDays');
+          if (trialDaysSelect) {
+            trialDaysSelect.parentElement.style.opacity = enableTrial ? '1' : '0.5';
+            trialDaysSelect.parentElement.style.pointerEvents = enableTrial ? 'auto' : 'none';
+          }
           
           try {
             const res = await fetch('/api/admin/updateSystemSettings', { method: 'POST', body: fd });
@@ -2594,8 +2701,8 @@ async function handleAdminPanel(request, env, adminPath) {
           if (saveDomainBtn) { saveDomainBtn.innerText = '保存配置'; saveDomainBtn.disabled = false; }
         }
 
-        function addUser() { document.getElementById('addBtn').disabled=true; api('/api/admin/add', { name: document.getElementById('name').value, expiryDate: document.getElementById('expiryDate').value, uuids: document.getElementById('uuids').value }); }
-        function saveUserEdit() { document.getElementById('editSaveBtn').disabled=true; api('/api/admin/update', { uuid: document.getElementById('editUuid').value, name: document.getElementById('editName').value, expiryDate: document.getElementById('editExpiryDate').value }); }
+        function addUser() { document.getElementById('addBtn').disabled=true; api('/api/admin/add', { name: document.getElementById('name').value, expiryDate: document.getElementById('expiryDate').value, uuids: document.getElementById('uuids').value, frontUsername: document.getElementById('frontUsername').value, frontPassword: document.getElementById('frontPassword').value }); }
+        function saveUserEdit() { document.getElementById('editSaveBtn').disabled=true; api('/api/admin/update', { uuid: document.getElementById('editUuid').value, name: document.getElementById('editName').value, expiryDate: document.getElementById('editExpiryDate').value, newPassword: document.getElementById('editNewPassword').value }); }
         
         // 单个操作
         function toggleStatus(uuid, isEnable) { api('/api/admin/status', { uuids: uuid, enabled: isEnable ? 'true' : 'false' }); }
@@ -2679,7 +2786,28 @@ async function handleAdminPanel(request, env, adminPath) {
         document.addEventListener('click', () => {
             document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
         });
-        function openEdit(uuid, name, exp) { document.getElementById('editUuid').value=uuid; document.getElementById('editUuidDisplay').value=uuid; document.getElementById('editName').value=name; document.getElementById('editExpiryDate').value=exp; document.getElementById('editModal').style.display='flex'; }
+        function openEdit(uuid, name, exp) { 
+          document.getElementById('editUuid').value=uuid; 
+          document.getElementById('editUuidDisplay').value=uuid; 
+          document.getElementById('editName').value=name; 
+          document.getElementById('editExpiryDate').value=exp; 
+          document.getElementById('editNewPassword').value=''; 
+          document.getElementById('editModal').style.display='flex'; 
+          // 加载关联的前端账号信息
+          document.getElementById('editAccountInfo').innerHTML = '加载中...';
+          fetch('/api/admin/getUserAccount?uuid=' + encodeURIComponent(uuid))
+            .then(r => r.json())
+            .then(data => {
+              if(data.success && data.account) {
+                document.getElementById('editAccountInfo').innerHTML = '👤 关联账号：<b>' + data.account.username + '</b>';
+              } else {
+                document.getElementById('editAccountInfo').innerHTML = '⚠️ 该用户暂无关联的前端账号';
+              }
+            })
+            .catch(() => {
+              document.getElementById('editAccountInfo').innerHTML = '❌ 加载账号信息失败';
+            });
+        }
         function closeEdit() { document.getElementById('editModal').style.display='none'; }
         function copy(t) { navigator.clipboard.writeText(t); toast('复制成功'); }
 
@@ -4061,14 +4189,17 @@ async function renderUserDashboard(env, userInfo) {
     const shadowrocketUrl = apiBaseUrl + '?target=shadowrocket&url=' + encodeURIComponent(originalSubUrl);
     const quanxUrl = apiBaseUrl + '?target=quanx&url=' + encodeURIComponent(originalSubUrl);
     
-    const expiryText = userInfo.expiry ? formatBeijingDateTime(userInfo.expiry) : '永久有效';
+    const expiryText = userInfo.expiry ? formatBeijingDateTime(userInfo.expiry) : '未激活';
     const expiryDate = userInfo.expiry ? formatBeijingDate(userInfo.expiry) : '';
     const createdDate = formatBeijingDateTime(userInfo.createdAt);
     const lastLoginDate = formatBeijingDateTime(userInfo.lastLogin);
     
     let statusClass = 'status-active';
     let statusText = '✅ 正常';
-    if (userInfo.expired) {
+    if (!userInfo.expiry) {
+        statusClass = 'status-expired';
+        statusText = '⚠️ 未激活';
+    } else if (userInfo.expired) {
         statusClass = 'status-expired';
         statusText = '❌ 已过期';
     } else if (!userInfo.enabled) {
@@ -4991,6 +5122,9 @@ async function renderUserDashboard(env, userInfo) {
                     } else if(o.status === 'rejected') {
                         statusColor = '#ff4d4f';
                         statusText = '已拒绝';
+                    } else if(o.status === 'expired') {
+                        statusColor = '#999999';
+                        statusText = '已过期';
                     }
                     var createTime = formatBeijingDateTime(o.created_at);
                     var paidTime = o.paid_at ? formatBeijingDateTime(o.paid_at) : '-';
@@ -5019,7 +5153,11 @@ async function renderUserDashboard(env, userInfo) {
                         html += '</div>';
                     } else if(o.status === 'rejected') {
                         html += '<div style="padding:12px;background:#fff1f0;border:1px solid #ffa39e;border-radius:8px;color:#ff4d4f;font-size:13px;">';
-                        html += '❌ 订单已被拒绝，请联系管理员了解原因';
+                        html += '❌ 订单已被拒绝';
+                        html += '</div>';
+                    } else if(o.status === 'expired') {
+                        html += '<div style="padding:12px;background:#f5f5f5;border:1px solid #d9d9d9;border-radius:8px;color:#999999;font-size:13px;">';
+                        html += '⏰ 订单已过期';
                         html += '</div>';
                     }
                     
@@ -5171,8 +5309,8 @@ async function renderUserDashboard(env, userInfo) {
                     return;
                 }
                 
-                // 如果是自动审核通过，无需支付
-                if(createResult.message && createResult.message.includes('自动审核')) {
+                // 如果不需要支付（免费套餐已自动审核或待审核），直接显示消息
+                if(!createResult.need_payment) {
                     showToast('✅ ' + createResult.message);
                     return;
                 }
@@ -5695,6 +5833,19 @@ async function handleUserGetOrders(request, env) {
             });
         }
 
+        // 获取系统设置中的过期时间配置
+        const settings = await dbGetSettings(env) || {};
+        const pendingOrderExpiry = settings.pendingOrderExpiry || 0; // 分钟，0表示永不过期
+        
+        // 如果设置了过期时间，先更新该用户过期的订单
+        if (pendingOrderExpiry > 0) {
+            const expiryTime = Date.now() - (pendingOrderExpiry * 60 * 1000);
+            await env.DB.prepare(`
+                UPDATE orders SET status = 'expired' 
+                WHERE status = 'pending' AND user_id = ? AND created_at < ?
+            `).bind(user.id, expiryTime).run();
+        }
+
         // 获取该用户的所有订单
         const orders = await env.DB.prepare(`
             SELECT 
@@ -5770,20 +5921,7 @@ async function handleUserCreateOrder(request, env) {
         const autoApproveEnabled = settings.autoApproveOrder === true;
         const autoApproveVersion = settings.autoApproveVersion || 0; // 用于追踪开关重置次数
         
-        // 检查用户是否可以使用自动审核
-        let canAutoApprove = false;
-        if (autoApproveEnabled) {
-            // 检查用户账户中的自动审核版本号
-            const userAccount = await env.DB.prepare(
-                "SELECT auto_approve_version FROM user_accounts WHERE id = ?"
-            ).bind(session.user_id).first();
-            
-            // 如果用户的版本号小于当前系统版本号，说明可以使用本轮自动审核
-            if (!userAccount || userAccount.auto_approve_version < autoApproveVersion) {
-                canAutoApprove = true;
-            }
-        }
-        
+        // 先获取套餐信息
         const plan = await env.DB.prepare(
             "SELECT * FROM subscription_plans WHERE id = ? AND enabled = 1"
         ).bind(planId).first();
@@ -5793,6 +5931,23 @@ async function handleUserCreateOrder(request, env) {
                 status: 404, 
                 headers: { 'Content-Type': 'application/json; charset=utf-8' } 
             });
+        }
+        
+        // 检查用户是否可以使用自动审核
+        // 重要：自动审核只对免费套餐（price = 0）生效，付费套餐必须等待支付
+        let canAutoApprove = false;
+        const isFreeplan = plan.price === 0 || plan.price === '0';
+        
+        if (autoApproveEnabled && isFreeplan) {
+            // 检查用户账户中的自动审核版本号
+            const userAccount = await env.DB.prepare(
+                "SELECT auto_approve_version FROM user_accounts WHERE id = ?"
+            ).bind(session.user_id).first();
+            
+            // 如果用户的版本号小于当前系统版本号，说明可以使用本轮自动审核
+            if (!userAccount || userAccount.auto_approve_version < autoApproveVersion) {
+                canAutoApprove = true;
+            }
         }
         
         // 创建订单
@@ -5850,10 +6005,22 @@ async function handleUserCreateOrder(request, env) {
             });
         }
         
-        // 如果开启了自动审核但用户已使用过，提示用户订单已提交等待审核
-        const message = autoApproveEnabled 
-            ? '您已使用过自动审核，订单已提交，请等待管理员审核' 
-            : '订单创建成功，请等待管理员审核';
+        // 根据套餐类型和自动审核状态返回不同的消息
+        let message;
+        let needPayment = false;
+        
+        if (isFreeplan) {
+            // 免费套餐
+            if (autoApproveEnabled) {
+                message = '您已使用过免费试用，订单已提交，请等待管理员审核';
+            } else {
+                message = '订单创建成功，请等待管理员审核';
+            }
+        } else {
+            // 付费套餐，需要支付
+            message = '订单创建成功，请完成支付';
+            needPayment = true;
+        }
         
         // 获取刚创建的订单ID
         const newOrder = await env.DB.prepare(
@@ -5863,7 +6030,8 @@ async function handleUserCreateOrder(request, env) {
         return new Response(JSON.stringify({ 
             success: true, 
             message: message,
-            order_id: newOrder ? newOrder.id : null
+            order_id: newOrder ? newOrder.id : null,
+            need_payment: needPayment
         }), { 
             status: 200, 
             headers: { 'Content-Type': 'application/json; charset=utf-8' } 
@@ -6368,6 +6536,46 @@ async function handleUserCheckin(request, env) {
 // =============================================================================
 // 支付通道管理 API
 // =============================================================================
+
+// 管理员获取用户关联的前端账号信息
+async function handleAdminGetUserAccount(request, env) {
+    if (!(await checkAuth(request, env))) {
+        return new Response(JSON.stringify({ error: '未授权' }), { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+    
+    try {
+        const url = new URL(request.url);
+        const uuid = url.searchParams.get('uuid');
+        
+        if (!uuid) {
+            return new Response(JSON.stringify({ error: '缺少 UUID 参数' }), { 
+                status: 400, 
+                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+            });
+        }
+        
+        const account = await env.DB.prepare(
+            "SELECT id, username, email, created_at, last_login FROM user_accounts WHERE uuid = ?"
+        ).bind(uuid).first();
+        
+        return new Response(JSON.stringify({ 
+            success: true, 
+            account: account || null
+        }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    } catch (e) {
+        console.error('获取用户账号错误:', e);
+        return new Response(JSON.stringify({ error: '服务器错误' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+}
 
 // 管理员获取支付通道列表
 async function handleAdminGetPaymentChannels(request, env) {

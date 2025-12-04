@@ -1220,7 +1220,8 @@ async function handleAdminSaveSettings(request, env) {
   
   const proxyIPStr = formData.get('proxyIP');
   const bestDomainsStr = formData.get('bestDomains');
-  const subUrl = formData.get('subUrl'); 
+  const subUrl = formData.get('subUrl');
+  const websiteUrl = formData.get('websiteUrl'); // 官网地址
 
   let proxyIPs = proxyIPStr ? proxyIPStr.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0) : [];
   let bestDomains = bestDomainsStr ? bestDomainsStr.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0) : [];
@@ -1230,7 +1231,7 @@ async function handleAdminSaveSettings(request, env) {
 
   // 获取现有设置，保留其他配置项
   const currentSettings = await dbGetSettings(env) || {};
-  const settings = { ...currentSettings, proxyIPs, bestDomains, subUrl };
+  const settings = { ...currentSettings, proxyIPs, bestDomains, subUrl, websiteUrl };
   
   await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
     .bind(SYSTEM_CONFIG_KEY, JSON.stringify(settings))
@@ -1290,6 +1291,11 @@ async function handleAdminUpdateSystemSettings(request, env) {
     currentSettings.announcementContent = formData.get('announcementContent') || '';
     // 更新公告版本号，用于强制用户重新查看公告
     currentSettings.announcementVersion = (currentSettings.announcementVersion || 0) + 1;
+  }
+  
+  // 更新站点名称
+  if (formData.has('siteName')) {
+    currentSettings.siteName = formData.get('siteName') || 'CFly';
   }
   
   await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
@@ -1384,7 +1390,7 @@ async function handleAdminPanel(request, env, adminPath) {
   }
 
   if (!isLogged) {
-    return renderAdminLoginPage(env, adminPath);
+    return await renderAdminLoginPage(env, adminPath);
   }
 
   // 【关键修复】先并发获取数据
@@ -1400,6 +1406,8 @@ async function handleAdminPanel(request, env, adminPath) {
   let proxyIPsList = settings.proxyIPs || (settings.proxyIP ? [settings.proxyIP] : []);
   let bestDomainsList = settings.bestDomains || [];
   let subUrl = settings.subUrl || "";
+  let websiteUrl = settings.websiteUrl || ""; // 官网地址
+  let siteName = settings.siteName || "CFly"; // 站点名称，默认CFly
 
   const rows = usersData.map(u => {
     const isExpired = u.expiry && u.expiry < Date.now();
@@ -1426,10 +1434,11 @@ async function handleAdminPanel(request, env, adminPath) {
           <div class="dropdown-content" id="dropdown-${u.uuid}">
             <div class="dropdown-item original" onclick="copySubByType('${u.uuid}', 'original')"><span>🔗</span> 原始订阅</div>
             <div class="dropdown-item clash" onclick="copySubByType('${u.uuid}', 'clash')"><span>⚡</span> Clash</div>
+            <div class="dropdown-item singbox" onclick="copySubByType('${u.uuid}', 'singbox')"><span>📦</span> SingBox</div>
             <div class="dropdown-item surge" onclick="copySubByType('${u.uuid}', 'surge')"><span>🌊</span> Surge</div>
             <div class="dropdown-item shadowrocket" onclick="copySubByType('${u.uuid}', 'shadowrocket')"><span>🚀</span> Shadowrocket</div>
             <div class="dropdown-item quantumult" onclick="copySubByType('${u.uuid}', 'quanx')"><span>🔮</span> Quantumult X</div>
-            <div class="dropdown-item v2ray" onclick="copySubByType('${u.uuid}', 'v2ray')"><span>✈️</span> V2Ray</div>
+            <div class="dropdown-item v2ray" onclick="copySubByType('${u.uuid}', 'v2ray')"><span>✈️</span> V2Ray/Xray</div>
             <div class="dropdown-item surfboard" onclick="copySubByType('${u.uuid}', 'surfboard')"><span>🏄</span> Surfboard</div>
           </div>
         </div>
@@ -1446,7 +1455,7 @@ async function handleAdminPanel(request, env, adminPath) {
     <!DOCTYPE html>
     <html lang="zh-CN">
     <head>
-      <title>vless-snippets 控制面板</title>
+      <title>${siteName} 控制面板</title>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
@@ -1617,7 +1626,7 @@ async function handleAdminPanel(request, env, adminPath) {
         <!-- 左侧导航 -->
         <div class="sidebar" id="admin-sidebar">
           <div class="sidebar-header">
-            <h1>vless-snippets</h1>
+            <h1>${siteName}</h1>
             <div class="date">${formatBeijingDate(Date.now())}</div>
             <button onclick="adminLogout()" style="margin-top:10px;width:100%;padding:8px;background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:4px;cursor:pointer;font-size:13px;" onmouseover="this.style.background=&quot;rgba(255,255,255,0.3)&quot;" onmouseout="this.style.background=&quot;rgba(255,255,255,0.2)&quot;">🚪 退出登录</button>
           </div>
@@ -1672,6 +1681,13 @@ async function handleAdminPanel(request, env, adminPath) {
             <div class="content-body">
               <div class="card">
                 <h3 style="margin-bottom:15px;">系统设置</h3>
+                <div style="padding:15px;background:#f0f5ff;border-radius:8px;margin-bottom:15px;">
+                  <div style="margin-bottom:8px;">
+                    <span style="font-weight:600;display:block;margin-bottom:4px;">🏷️ 站点名称</span>
+                    <div style="font-size:13px;color:#666;">用于显示需要站点名称的地方</div>
+                  </div>
+                  <input type="text" id="siteNameInput" value="${siteName}" onchange="updateSystemSettings()" placeholder="请输入站点名称，例如：CFly" style="width:100%;padding:10px;border:1px solid #d9d9d9;border-radius:4px;font-size:14px;">
+                </div>
                 <div style="padding:15px;background:#f8f9fa;border-radius:8px;margin-bottom:15px;">
                   <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
                     <div>
@@ -1799,6 +1815,11 @@ async function handleAdminPanel(request, env, adminPath) {
                 <div style="margin-bottom: 20px; padding: 15px; background: #fff7e6; border: 1px solid #ffd591; border-radius: 4px;">
                     <label style="color: #d46b08;">节点订阅地址 (用于生成订阅链接)</label>
                     <input type="text" id="subUrl" value="${subUrl}" placeholder="请输入你部署的节点端 Worker 域名, 例如: https://aa.zqsl.eu.org">
+                </div>
+                <div style="margin-bottom: 20px; padding: 15px; background: #e6f7ff; border: 1px solid #91d5ff; border-radius: 4px;">
+                    <label style="color: #0050b3;">官网地址 (显示在订阅节点列表中)</label>
+                    <input type="text" id="websiteUrl" value="${websiteUrl}" placeholder="请输入官网地址, 例如: snippets.1412.me (不需要加 https://)">
+                    <div style="margin-top:8px;font-size:12px;color:#666;">💡 此地址会显示在订阅节点的别名中，方便用户识别官网</div>
                 </div>
               </div>
               
@@ -2351,6 +2372,7 @@ async function handleAdminPanel(request, env, adminPath) {
         }
         
         async function updateSystemSettings() {
+          const siteName = document.getElementById('siteNameInput').value;
           const enableRegister = document.getElementById('enableRegisterCheck').checked;
           const autoApproveOrder = document.getElementById('autoApproveOrderCheck').checked;
           const pendingOrderExpiry = document.getElementById('pendingOrderExpiry').value;
@@ -2360,6 +2382,7 @@ async function handleAdminPanel(request, env, adminPath) {
           const customLink2Name = document.getElementById('customLink2Name').value;
           const customLink2Url = document.getElementById('customLink2Url').value;
           const fd = new FormData();
+          fd.append('siteName', siteName);
           fd.append('enableRegister', enableRegister);
           fd.append('autoApproveOrder', autoApproveOrder);
           fd.append('pendingOrderExpiry', pendingOrderExpiry);
@@ -2549,6 +2572,7 @@ async function handleAdminPanel(request, env, adminPath) {
           fd.append('proxyIP', proxyIPs.join('\\n'));
           fd.append('bestDomains', bestDomains.join('\\n'));
           fd.append('subUrl', document.getElementById('subUrl').value);
+          fd.append('websiteUrl', document.getElementById('websiteUrl').value);
           
           try { 
             const res = await fetch('/api/admin/saveSettings', { method: 'POST', body: fd }); 
@@ -2613,21 +2637,14 @@ async function handleAdminPanel(request, env, adminPath) {
                 clientName = '原始订阅';
                 schemeUrl = originalUrl;
             } else {
-                const targetMap = {
-                    'clash': 'clash',
-                    'surge': 'surge',
-                    'shadowrocket': 'shadowrocket',
-                    'quanx': 'quanx',
-                    'v2ray': 'v2ray',
-                    'surfboard': 'surfboard'
-                };
                 const clientNames = {
                     'clash': 'Clash',
                     'surge': 'Surge',
                     'shadowrocket': 'Shadowrocket',
                     'quanx': 'Quantumult X',
                     'v2ray': 'V2Ray',
-                    'surfboard': 'Surfboard'
+                    'surfboard': 'Surfboard',
+                    'singbox': 'SingBox'
                 };
                 const schemeMap = {
                     'clash': 'clash://install-config?url=',
@@ -2635,7 +2652,17 @@ async function handleAdminPanel(request, env, adminPath) {
                     'shadowrocket': 'shadowrocket://add/',
                     'quanx': 'quantumult-x:///add-resource?remote-resource=',
                     'v2ray': 'v2rayn://install-config?url=',
-                    'surfboard': 'surfboard:///install-config?url='
+                    'surfboard': 'surfboard:///install-config?url=',
+                    'singbox': 'sing-box://import-remote-profile?url='
+                };
+                const targetMap = {
+                    'clash': 'clash',
+                    'surge': 'surge',
+                    'shadowrocket': 'shadowrocket',
+                    'quanx': 'quanx',
+                    'v2ray': 'v2ray',
+                    'surfboard': 'surfboard',
+                    'singbox': 'singbox'
                 };
                 finalUrl = apiBaseUrl + '?target=' + targetMap[type] + '&url=' + encodeURIComponent(originalUrl);
                 clientName = clientNames[type];
@@ -3375,7 +3402,9 @@ async function handleAdminPanel(request, env, adminPath) {
 }
 
 // 渲染管理员登录页面
-function renderAdminLoginPage(env, adminPath) {
+async function renderAdminLoginPage(env, adminPath) {
+    const settings = await dbGetSettings(env) || {};
+    const siteName = settings.siteName || "CFly";
     const adminUsername = env.ADMIN_USERNAME || 'admin';
     return new Response(`<!DOCTYPE html>
 <html lang="zh-CN">
@@ -3499,7 +3528,7 @@ function renderAdminLoginPage(env, adminPath) {
 <body>
     <div class="container">
         <div style="text-align:center;margin-bottom:20px;padding:15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:8px;color:white;">
-            <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ vless-snippets</h2>
+            <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ ${siteName}</h2>
             <p style="margin:0;font-size:13px;opacity:0.9;">轻量级 VLESS 订阅管理系统</p>
         </div>
         <h2>🔐 管理员登录</h2>
@@ -3620,6 +3649,7 @@ async function renderAuthPage(env) {
     const settings = await dbGetSettings(env) || { subUrl: "", enableRegister: false };
     const enableRegister = settings.enableRegister === true;
     const subUrl = settings.subUrl || "";
+    const siteName = settings.siteName || "CFly";
     const adminPath = env.ADMIN_PATH || '/admin';
     
     return new Response(`<!DOCTYPE html>
@@ -3847,7 +3877,7 @@ async function renderAuthPage(env) {
             <!-- 登录表单 -->
             <div class="form-section active" id="login-section">
                 <div style="text-align:center;margin-bottom:20px;padding:15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:8px;color:white;">
-                    <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ vless-snippets</h2>
+                    <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ ${siteName}</h2>
                     <p style="margin:0;font-size:13px;opacity:0.9;">轻量级 VLESS 订阅服务</p>
                 </div>
                 <h2>🔐 用户登录</h2>
@@ -3871,7 +3901,7 @@ async function renderAuthPage(env) {
             <!-- 注册表单 -->
             <div class="form-section" id="register-section">
                 <div style="text-align:center;margin-bottom:20px;padding:15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:8px;color:white;">
-                    <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ vless-snippets</h2>
+                    <h2 style="margin:0 0 8px 0;font-size:20px;">⚡ ${siteName}</h2>
                     <p style="margin:0;font-size:13px;opacity:0.9;">轻量级 VLESS 订阅服务</p>
                 </div>
                 <h2>📝 用户注册</h2>
@@ -4015,6 +4045,7 @@ async function renderAuthPage(env) {
 async function renderUserDashboard(env, userInfo) {
     const settings = await dbGetSettings(env) || { subUrl: "" };
     const subUrl = settings.subUrl || "";
+    const siteName = settings.siteName || "CFly";
     const adminPath = env.ADMIN_PATH || '/admin';
     
     // 获取自定义链接配置
@@ -4059,7 +4090,7 @@ async function renderUserDashboard(env, userInfo) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>vless-snippets 用户面板</title>
+    <title>${siteName} 用户面板</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -4481,7 +4512,7 @@ async function renderUserDashboard(env, userInfo) {
         <!-- 左侧导航 -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h1>vless-snippets</h1>
+                <h1>${siteName}</h1>
                 <div class="user-info-mini">
                     ${userInfo.username}<br>
                     ${new Date().toLocaleDateString('zh-CN')}
@@ -4570,6 +4601,13 @@ async function renderUserDashboard(env, userInfo) {
                     <div class="sub-dropdown" id="sub-dropdown-clash">
                         <div class="sub-dropdown-item" onclick="copySubOnly('clash')">📋 复制 Clash 订阅</div>
                         <div class="sub-dropdown-item" onclick="importSub('clash')">⬇️ 一键导入 Clash</div>
+                    </div>
+                </div>
+                <div class="sub-btn-wrapper">
+                    <button class="sub-btn" onclick="toggleSubDropdown('singbox')">📦 SingBox ▼</button>
+                    <div class="sub-dropdown" id="sub-dropdown-singbox">
+                        <div class="sub-dropdown-item" onclick="copySubOnly('singbox')">📋 复制 SingBox 订阅</div>
+                        <div class="sub-dropdown-item" onclick="importSub('singbox')">⬇️ 一键导入 SingBox</div>
                     </div>
                 </div>
                 <div class="sub-btn-wrapper">
@@ -4679,6 +4717,7 @@ async function renderUserDashboard(env, userInfo) {
           return year + '-' + month + '-' + day;
         }
         
+        // 订阅转换后端配置
         const apiBaseUrl = 'https://url.v1.mk/sub';
         const subUrl = \`${subUrl}\`;
         const uuid = \`${userInfo.uuid}\`;
@@ -4727,17 +4766,19 @@ async function renderUserDashboard(env, userInfo) {
                 finalUrl = originalUrl;
                 clientName = '\u901a\u7528\u8ba2\u9605';
             } else {
-                const targetMap = {
-                    'clash': 'clash',
-                    'surge': 'surge',
-                    'shadowrocket': 'shadowrocket',
-                    'quanx': 'quanx'
-                };
                 const clientNames = {
                     'clash': 'Clash',
                     'surge': 'Surge',
                     'shadowrocket': 'Shadowrocket',
-                    'quanx': 'Quantumult X'
+                    'quanx': 'Quantumult X',
+                    'singbox': 'SingBox'
+                };
+                const targetMap = {
+                    'clash': 'clash',
+                    'surge': 'surge',
+                    'shadowrocket': 'shadowrocket',
+                    'quanx': 'quanx',
+                    'singbox': 'singbox'
                 };
                 finalUrl = apiBaseUrl + '?target=' + targetMap[type] + '&url=' + encodeURIComponent(originalUrl);
                 clientName = clientNames[type];
@@ -4771,23 +4812,26 @@ async function renderUserDashboard(env, userInfo) {
                 clientName = '\u901a\u7528\u5ba2\u6237\u7aef';
                 schemeUrl = originalUrl;
             } else {
-                const targetMap = {
-                    'clash': 'clash',
-                    'surge': 'surge',
-                    'shadowrocket': 'shadowrocket',
-                    'quanx': 'quanx'
-                };
                 const clientNames = {
                     'clash': 'Clash',
                     'surge': 'Surge',
                     'shadowrocket': 'Shadowrocket',
-                    'quanx': 'Quantumult X'
+                    'quanx': 'Quantumult X',
+                    'singbox': 'SingBox'
                 };
                 const schemeMap = {
                     'clash': 'clash://install-config?url=',
                     'surge': 'surge:///install-config?url=',
                     'shadowrocket': 'shadowrocket://add/',
-                    'quanx': 'quantumult-x:///add-resource?remote-resource='
+                    'quanx': 'quantumult-x:///add-resource?remote-resource=',
+                    'singbox': 'sing-box://import-remote-profile?url='
+                };
+                const targetMap = {
+                    'clash': 'clash',
+                    'surge': 'surge',
+                    'shadowrocket': 'shadowrocket',
+                    'quanx': 'quanx',
+                    'singbox': 'singbox'
                 };
                 finalUrl = apiBaseUrl + '?target=' + targetMap[type] + '&url=' + encodeURIComponent(originalUrl);
                 clientName = clientNames[type];
@@ -4947,6 +4991,9 @@ async function renderUserDashboard(env, userInfo) {
                     } else if(o.status === 'rejected') {
                         statusColor = '#ff4d4f';
                         statusText = '已拒绝';
+                    } else if(o.status === 'expired') {
+                        statusColor = '#999999';
+                        statusText = '已过期';
                     }
                     var createTime = formatBeijingDateTime(o.created_at);
                     var paidTime = o.paid_at ? formatBeijingDateTime(o.paid_at) : '-';
@@ -4975,7 +5022,11 @@ async function renderUserDashboard(env, userInfo) {
                         html += '</div>';
                     } else if(o.status === 'rejected') {
                         html += '<div style="padding:12px;background:#fff1f0;border:1px solid #ffa39e;border-radius:8px;color:#ff4d4f;font-size:13px;">';
-                        html += '❌ 订单已被拒绝，请联系管理员了解原因';
+                        html += '❌ 订单已被拒绝';
+                        html += '</div>';
+                    } else if(o.status === 'expired') {
+                        html += '<div style="padding:12px;background:#f5f5f5;border:1px solid #d9d9d9;border-radius:8px;color:#999999;font-size:13px;">';
+                        html += '⏰ 订单已过期';
                         html += '</div>';
                     }
                     
@@ -5649,6 +5700,19 @@ async function handleUserGetOrders(request, env) {
                 status: 404, 
                 headers: { 'Content-Type': 'application/json; charset=utf-8' } 
             });
+        }
+
+        // 获取系统设置中的过期时间配置
+        const settings = await dbGetSettings(env) || {};
+        const pendingOrderExpiry = settings.pendingOrderExpiry || 0; // 分钟，0表示永不过期
+        
+        // 如果设置了过期时间，先更新该用户过期的订单
+        if (pendingOrderExpiry > 0) {
+            const expiryTime = Date.now() - (pendingOrderExpiry * 60 * 1000);
+            await env.DB.prepare(`
+                UPDATE orders SET status = 'expired' 
+                WHERE status = 'pending' AND user_id = ? AND created_at < ?
+            `).bind(user.id, expiryTime).run();
         }
 
         // 获取该用户的所有订单
