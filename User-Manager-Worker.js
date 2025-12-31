@@ -126,6 +126,8 @@ export default {
       if (path === '/api/admin/getUserAccount') return await handleAdminGetUserAccount(request, env);
       // 邀请码管理
       if (path === '/api/admin/invites') return await handleAdminGetInvites(request, env);
+      // 数据导出
+      if (path === '/api/admin/export') return await handleAdminExportData(request, env);
     }
     if (request.method === 'GET') {
       if (path === '/api/user/orders') return await handleUserGetOrders(request, env);
@@ -988,6 +990,73 @@ async function handleAdminMigrate(request, env) {
     }
 
     return new Response(`迁移成功！已将 ${count} 条 KV 数据导入 D1 数据库。`, { status: 200 });
+}
+
+// API: 数据导出
+async function handleAdminExportData(request, env) {
+    if (!(await checkAuth(request, env))) {
+        return new Response('Unauthorized', { status: 401 });
+    }
+
+    try {
+        // 并发获取所有数据
+        const [
+            usersResult,
+            userAccountsResult,
+            settingsResult,
+            plansResult,
+            ordersResult,
+            announcementsResult,
+            invitesResult,
+            paymentChannelsResult
+        ] = await Promise.all([
+            env.DB.prepare("SELECT * FROM users").all(),
+            env.DB.prepare("SELECT id, username, email, uuid, created_at, last_login FROM user_accounts").all(), // 不导出密码hash
+            env.DB.prepare("SELECT * FROM settings").all(),
+            env.DB.prepare("SELECT * FROM plans").all().catch(() => ({ results: [] })),
+            env.DB.prepare("SELECT * FROM orders").all().catch(() => ({ results: [] })),
+            env.DB.prepare("SELECT * FROM announcements").all().catch(() => ({ results: [] })),
+            env.DB.prepare("SELECT * FROM invite_codes").all().catch(() => ({ results: [] })),
+            env.DB.prepare("SELECT * FROM payment_channels").all().catch(() => ({ results: [] }))
+        ]);
+
+        const exportData = {
+            exportTime: new Date().toISOString(),
+            exportTimeBeijing: formatBeijingDateTime(Date.now()),
+            version: '1.0',
+            data: {
+                users: usersResult.results || [],
+                userAccounts: userAccountsResult.results || [],
+                settings: settingsResult.results || [],
+                plans: plansResult.results || [],
+                orders: ordersResult.results || [],
+                announcements: announcementsResult.results || [],
+                inviteCodes: invitesResult.results || [],
+                paymentChannels: paymentChannelsResult.results || []
+            },
+            summary: {
+                totalUsers: (usersResult.results || []).length,
+                totalUserAccounts: (userAccountsResult.results || []).length,
+                totalPlans: (plansResult.results || []).length,
+                totalOrders: (ordersResult.results || []).length,
+                totalAnnouncements: (announcementsResult.results || []).length,
+                totalInviteCodes: (invitesResult.results || []).length,
+                totalPaymentChannels: (paymentChannelsResult.results || []).length
+            }
+        };
+
+        return new Response(JSON.stringify(exportData), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*'
+            }
+        });
+
+    } catch (e) {
+        console.error('数据导出错误:', e);
+        return new Response('导出失败: ' + e.message, { status: 500 });
+    }
 }
 
 // 定时任务：自动清理非活跃用户
@@ -2067,6 +2136,16 @@ async function handleAdminPanel(request, env, adminPath) {
                   <button onclick="switchSection('users')" class="btn-primary">👥 用户管理</button>
                 </div>
               </div>
+              <div class="card">
+                <h3 style="margin-bottom:15px;">📦 数据备份</h3>
+                <div style="padding:15px;background:#f6ffed;border-radius:8px;margin-bottom:15px;">
+                  <div style="margin-bottom:10px;">
+                    <span style="font-weight:600;display:block;margin-bottom:4px;">导出全部数据</span>
+                    <div style="font-size:13px;color:#666;">导出用户、设置、套餐、订单、公告、邀请码等所有数据为 JSON 文件，可用于备份或迁移到服务器</div>
+                  </div>
+                  <button onclick="exportData()" class="btn-success" style="margin-top:10px;">📥 导出数据</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -3097,6 +3176,41 @@ async function handleAdminPanel(request, env, adminPath) {
             } else {
                 const err = await res.text();
                 alert('操作失败: ' + err);
+            }
+        }
+        
+        // 数据导出
+        async function exportData() {
+            toast('⏳ 正在导出数据...');
+            try {
+                const res = await fetch('/api/admin/export');
+                if(!res.ok) {
+                    const err = await res.text();
+                    toast('❌ 导出失败: ' + err);
+                    return;
+                }
+                const data = await res.json();
+                // 生成文件名（包含时间戳）
+                const now = new Date();
+                const timestamp = now.getFullYear() + 
+                    String(now.getMonth() + 1).padStart(2, '0') + 
+                    String(now.getDate()).padStart(2, '0') + '_' +
+                    String(now.getHours()).padStart(2, '0') +
+                    String(now.getMinutes()).padStart(2, '0');
+                const filename = 'backup_' + timestamp + '.json';
+                // 创建下载
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                toast('✅ 数据已导出: ' + filename);
+            } catch(e) {
+                toast('❌ 导出失败: ' + e.message);
             }
         }
 
