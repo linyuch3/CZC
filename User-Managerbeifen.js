@@ -100,6 +100,11 @@ export default {
       if (path === '/api/admin/payment/channels/update') return await handleAdminUpdatePaymentChannel(request, env);
       // 支付回调
       if (path === '/api/payment/notify') return await handlePaymentNotify(request, env);
+      // 邀请码管理
+      if (path === '/api/admin/invites/create') return await handleAdminCreateInvite(request, env);
+      if (path === '/api/admin/invites/delete') return await handleAdminDeleteInvite(request, env);
+      if (path === '/api/admin/invites/toggle') return await handleAdminToggleInvite(request, env);
+      if (path === '/api/admin/invites/update') return await handleAdminUpdateInvite(request, env);
     }
     
     // 4. 用户套餐和订单 API
@@ -117,6 +122,10 @@ export default {
       // 支付通道
       if (path === '/api/admin/payment/channels') return await handleAdminGetPaymentChannels(request, env);
       if (path === '/api/payment/channels') return await handleGetPaymentChannels(request, env);
+      // 获取用户关联的前端账号
+      if (path === '/api/admin/getUserAccount') return await handleAdminGetUserAccount(request, env);
+      // 邀请码管理
+      if (path === '/api/admin/invites') return await handleAdminGetInvites(request, env);
     }
     if (request.method === 'GET') {
       if (path === '/api/user/orders') return await handleUserGetOrders(request, env);
@@ -326,6 +335,7 @@ async function handleUserRegister(request, env) {
         const username = formData.get('username');
         const password = formData.get('password');
         const email = formData.get('email') || '';
+        const inviteCode = formData.get('invite_code')?.trim() || '';
 
         // 验证输入
         if (!username || !password) {
@@ -349,6 +359,42 @@ async function handleUserRegister(request, env) {
             });
         }
 
+        // 验证邀请码（如果启用了邀请码要求）
+        const requireInviteCode = settings.requireInviteCode === true;
+        let inviteRecord = null;
+        let inviteTrialDays = 0;
+        
+        if (requireInviteCode) {
+            if (!inviteCode) {
+                return new Response(JSON.stringify({ error: '请输入邀请码' }), { 
+                    status: 400, 
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                });
+            }
+            
+            // 查询邀请码
+            inviteRecord = await env.DB.prepare(
+                "SELECT * FROM invite_codes WHERE code = ? AND enabled = 1"
+            ).bind(inviteCode).first();
+            
+            if (!inviteRecord) {
+                return new Response(JSON.stringify({ error: '邀请码无效或已禁用' }), { 
+                    status: 400, 
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                });
+            }
+            
+            // 检查使用次数
+            if (inviteRecord.used_count >= inviteRecord.max_uses) {
+                return new Response(JSON.stringify({ error: '邀请码已达到使用次数上限' }), { 
+                    status: 400, 
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                });
+            }
+            
+            inviteTrialDays = inviteRecord.trial_days || 0;
+        }
+
         // 检查用户名是否已存在
         const existingUser = await dbGetUserByUsername(env, username);
         if (existingUser) {
@@ -362,8 +408,20 @@ async function handleUserRegister(request, env) {
         const uuid = crypto.randomUUID();
         const passwordHash = await hashPassword(password);
         
-        // 先创建 UUID 用户 - 新用户赠送7天免费试用
-        const expiry = Date.now() + (7 * 24 * 60 * 60 * 1000); // 新用户7天免费试用
+        // 检查是否开启新用户试用
+        const enableTrial = settings.enableTrial === true;
+        const trialDays = settings.trialDays || 7;
+        
+        // 优先使用邀请码赠送天数，其次使用系统试用天数，否则为 null
+        let expiry = null;
+        if (inviteTrialDays > 0) {
+            // 邀请码赠送天数
+            expiry = Date.now() + (inviteTrialDays * 24 * 60 * 60 * 1000);
+        } else if (enableTrial) {
+            // 系统试用天数
+            expiry = Date.now() + (trialDays * 24 * 60 * 60 * 1000);
+        }
+        
         await env.DB.prepare(
             "INSERT INTO users (uuid, name, expiry, create_at, enabled) VALUES (?, ?, ?, ?, 1)"
         ).bind(uuid, username, expiry, Date.now()).run();
@@ -375,6 +433,13 @@ async function handleUserRegister(request, env) {
                 status: 500, 
                 headers: { 'Content-Type': 'application/json; charset=utf-8' } 
             });
+        }
+        
+        // 更新邀请码使用次数
+        if (inviteRecord) {
+            await env.DB.prepare(
+                "UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ?"
+            ).bind(inviteRecord.id).run();
         }
 
         return new Response(JSON.stringify({ 
@@ -1126,14 +1191,20 @@ async function handleAdminAdd(request, env) {
   let name = formData.get('name');
   const expiryDateStr = formData.get('expiryDate');
   const customUUIDsInput = formData.get('uuids');
+  let frontUsername = formData.get('frontUsername');
+  let frontPassword = formData.get('frontPassword');
   
   if (!name || name.trim() === "") name = "未命名";
 
   let expiry = null;
   if (expiryDateStr) {
-    const date = new Date(expiryDateStr);
-    date.setHours(23, 59, 59, 999);
-    expiry = date.getTime();
+    // 将日期字符串解析为北京时间的当天 23:59:59
+    // expiryDateStr 格式为 YYYY-MM-DD
+    const [year, month, day] = expiryDateStr.split('-').map(Number);
+    // 创建北京时间 23:59:59，然后转换为UTC时间戳
+    // 北京时间 = UTC+8，所以需要减去8小时
+    const beijingEndOfDay = new Date(Date.UTC(year, month - 1, day, 23 - 8, 59, 59, 999));
+    expiry = beijingEndOfDay.getTime();
   }
 
   let targetUUIDs = [];
@@ -1149,7 +1220,44 @@ async function handleAdminAdd(request, env) {
   
   await env.DB.batch(batch);
 
+  // 如果只有一个 UUID，则创建前端账号
+  if (targetUUIDs.length === 1) {
+    const uuid = targetUUIDs[0];
+    
+    // 生成用户名：留空则随机生成 6 位
+    if (!frontUsername || frontUsername.trim() === '') {
+      frontUsername = generateRandomUsername();
+    } else {
+      frontUsername = frontUsername.trim();
+    }
+    
+    // 密码：留空则与用户名相同
+    if (!frontPassword || frontPassword.trim() === '') {
+      frontPassword = frontUsername;
+    } else {
+      frontPassword = frontPassword.trim();
+    }
+    
+    // 检查用户名是否已存在
+    const existingUser = await dbGetUserByUsername(env, frontUsername);
+    if (!existingUser) {
+      // 创建前端账号
+      const passwordHash = await hashPassword(frontPassword);
+      await dbCreateUserAccount(env, frontUsername, passwordHash, '', uuid);
+    }
+  }
+
   return new Response('OK', { status: 200 });
+}
+
+// 生成随机用户名 (6位字母数字组合)
+function generateRandomUsername() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
 
 // API: 编辑用户
@@ -1160,19 +1268,32 @@ async function handleAdminUpdate(request, env) {
   const uuid = formData.get('uuid');
   const name = formData.get('name');
   const expiryDateStr = formData.get('expiryDate');
+  const newPassword = formData.get('newPassword');
 
   if (!uuid) return new Response('UUID required', { status: 400 });
 
   let expiry = null;
   if (expiryDateStr) {
-    const date = new Date(expiryDateStr);
-    date.setHours(23, 59, 59, 999);
-    expiry = date.getTime();
+    // 将日期字符串解析为北京时间的当天 23:59:59
+    // expiryDateStr 格式为 YYYY-MM-DD
+    const [year, month, day] = expiryDateStr.split('-').map(Number);
+    // 创建北京时间 23:59:59，然后转换为UTC时间戳
+    // 北京时间 = UTC+8，所以需要减去8小时
+    const beijingEndOfDay = new Date(Date.UTC(year, month - 1, day, 23 - 8, 59, 59, 999));
+    expiry = beijingEndOfDay.getTime();
   }
 
   await env.DB.prepare("UPDATE users SET name = ?, expiry = ? WHERE uuid = ?")
     .bind(name || '未命名', expiry, uuid)
     .run();
+
+  // 如果提供了新密码，更新关联的前端账号密码
+  if (newPassword && newPassword.trim() !== '') {
+    const passwordHash = await hashPassword(newPassword.trim());
+    await env.DB.prepare("UPDATE user_accounts SET password_hash = ? WHERE uuid = ?")
+      .bind(passwordHash, uuid)
+      .run();
+  }
 
   return new Response('OK', { status: 200 });
 }
@@ -1252,10 +1373,16 @@ async function handleAdminUpdateSystemSettings(request, env) {
   if (formData.has('enableRegister')) {
     const enableRegister = formData.get('enableRegister') === 'true';
     const autoApproveOrder = formData.get('autoApproveOrder') === 'true';
+    const enableTrial = formData.get('enableTrial') === 'true';
+    const trialDays = parseInt(formData.get('trialDays')) || 7;
+    const requireInviteCode = formData.get('requireInviteCode') === 'true';
     const wasAutoApproveEnabled = currentSettings.autoApproveOrder === true;
     
     currentSettings.enableRegister = enableRegister;
     currentSettings.autoApproveOrder = autoApproveOrder;
+    currentSettings.enableTrial = enableTrial;
+    currentSettings.trialDays = trialDays;
+    currentSettings.requireInviteCode = requireInviteCode;
     
     // 如果自动审核开关从关闭变为开启，增加版本号（刷新所有用户的使用次数）
     if (!wasAutoApproveEnabled && autoApproveOrder) {
@@ -1414,11 +1541,12 @@ async function handleAdminPanel(request, env, adminPath) {
     const isEnabled = u.enabled; 
     
     const expiryDateObj = u.expiry ? new Date(u.expiry) : null;
-    const expiryText = expiryDateObj ? formatBeijingDateTime(u.expiry) : '永久有效';
+    const expiryText = expiryDateObj ? formatBeijingDateTime(u.expiry) : '未激活';
     const expiryVal = expiryDateObj ? formatBeijingDate(u.expiry) : '';
     const createDate = u.createAt ? formatBeijingDateTime(u.createAt) : '-';
     
-    let statusHtml = isExpired ? '<span class="tag expired">已过期</span>' : (!isEnabled ? '<span class="tag disabled">已禁用</span>' : '<span class="tag active">正常</span>');
+    // 状态显示：未激活 > 已过期 > 已禁用 > 正常
+    let statusHtml = !u.expiry ? '<span class="tag disabled">未激活</span>' : (isExpired ? '<span class="tag expired">已过期</span>' : (!isEnabled ? '<span class="tag disabled">已禁用</span>' : '<span class="tag active">正常</span>'));
     const safeName = u.name.replace(/'/g, "\\'");
     
     return `<tr data-uuid="${u.uuid}">
@@ -1663,6 +1791,10 @@ async function handleAdminPanel(request, env, adminPath) {
               <span class="menu-item-icon">💰</span>
               <span>支付通道</span>
             </li>
+            <li class="menu-item" data-section="invites" onclick="switchSection('invites')">
+              <span class="menu-item-icon">🎫</span>
+              <span>邀请码</span>
+            </li>
             <li class="menu-item" data-section="change-password" onclick="switchSection('change-password')">
               <span class="menu-item-icon">🔒</span>
               <span>修改密码</span>
@@ -1707,12 +1839,50 @@ async function handleAdminPanel(request, env, adminPath) {
                     <div>
                       <span style="font-weight:600;display:block;margin-bottom:4px;">自动审核订单</span>
                       <div style="font-size:13px;color:#666;">
-                        开启后，用户订购套餐将自动审核通过并延长时长；每个用户同时只能有一个待处理订单，防止刷时间
+                        开启后，用户订购<b style="color:#ff4d4f;">免费套餐（价格为0）</b>将自动审核通过；付费套餐仍需等待支付或手动审核
                       </div>
                     </div>
                     <div class="switch" onclick="toggleSwitch(event, 'autoApproveOrderCheck')">
                       <input type="checkbox" id="autoApproveOrderCheck" ${settings.autoApproveOrder ? 'checked' : ''} onchange="updateSystemSettings()" style="display:none;">
                       <span class="slider" style="background:${settings.autoApproveOrder ? '#52c41a' : '#d9d9d9'};"></span>
+                    </div>
+                  </label>
+                </div>
+                <div style="padding:15px;background:#f6ffed;border-radius:8px;margin-bottom:15px;">
+                  <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+                    <div>
+                      <span style="font-weight:600;display:block;margin-bottom:4px;">🎁 新用户注册试用</span>
+                      <div style="font-size:13px;color:#666;">
+                        开启后，新注册用户自动获得免费试用时长；关闭后新用户需购买套餐才能使用
+                      </div>
+                    </div>
+                    <div class="switch" onclick="toggleSwitch(event, 'enableTrialCheck')">
+                      <input type="checkbox" id="enableTrialCheck" ${settings.enableTrial ? 'checked' : ''} onchange="updateSystemSettings()" style="display:none;">
+                      <span class="slider" style="background:${settings.enableTrial ? '#52c41a' : '#d9d9d9'};"></span>
+                    </div>
+                  </label>
+                  <div style="margin-top:12px;${settings.enableTrial ? '' : 'opacity:0.5;pointer-events:none;'}">
+                    <label style="font-size:13px;color:#666;display:block;margin-bottom:5px;">试用时长（天）</label>
+                    <select id="trialDays" onchange="updateSystemSettings()" style="width:100%;padding:8px;border:1px solid #d9d9d9;border-radius:4px;">
+                      <option value="1" ${settings.trialDays == 1 ? 'selected' : ''}>1 天</option>
+                      <option value="3" ${settings.trialDays == 3 ? 'selected' : ''}>3 天</option>
+                      <option value="7" ${!settings.trialDays || settings.trialDays == 7 ? 'selected' : ''}>7 天</option>
+                      <option value="14" ${settings.trialDays == 14 ? 'selected' : ''}>14 天</option>
+                      <option value="30" ${settings.trialDays == 30 ? 'selected' : ''}>30 天</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="padding:15px;background:#e6fffb;border-radius:8px;margin-bottom:15px;">
+                  <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+                    <div>
+                      <span style="font-weight:600;display:block;margin-bottom:4px;">🎫 注册需要邀请码</span>
+                      <div style="font-size:13px;color:#666;">
+                        开启后，用户注册时必须填写有效的邀请码；邀请码在"邀请码管理"中生成
+                      </div>
+                    </div>
+                    <div class="switch" onclick="toggleSwitch(event, 'requireInviteCodeCheck')">
+                      <input type="checkbox" id="requireInviteCodeCheck" ${settings.requireInviteCode ? 'checked' : ''} onchange="updateSystemSettings()" style="display:none;">
+                      <span class="slider" style="background:${settings.requireInviteCode ? '#52c41a' : '#d9d9d9'};"></span>
                     </div>
                   </label>
                 </div>
@@ -1814,7 +1984,8 @@ async function handleAdminPanel(request, env, adminPath) {
                 <h3 style="margin-bottom:15px;">节点订阅地址</h3>
                 <div style="margin-bottom: 20px; padding: 15px; background: #fff7e6; border: 1px solid #ffd591; border-radius: 4px;">
                     <label style="color: #d46b08;">节点订阅地址 (用于生成订阅链接)</label>
-                    <input type="text" id="subUrl" value="${subUrl}" placeholder="请输入你部署的节点端 Worker 域名, 例如: https://aa.zqsl.eu.org">
+                    <input type="text" id="subUrl" value="${subUrl}" placeholder="支持多个地址用英文逗号分隔，用户复制时随机获取一个">
+                    <div style="margin-top:8px;font-size:12px;color:#666;">💡 支持多个地址，用英文逗号(,)分隔，用户复制订阅时会随机分配一个地址</div>
                 </div>
                 <div style="margin-bottom: 20px; padding: 15px; background: #e6f7ff; border: 1px solid #91d5ff; border-radius: 4px;">
                     <label style="color: #0050b3;">官网地址 (显示在订阅节点列表中)</label>
@@ -2029,6 +2200,58 @@ async function handleAdminPanel(request, env, adminPath) {
             </div>
           </div>
 
+          <!-- 邀请码管理 -->
+          <div id="section-invites" class="section">
+            <div class="content-header">
+              <h2>🎫 邀请码管理</h2>
+            </div>
+            <div class="content-body">
+              <div class="card">
+                <div style="margin-bottom:20px;padding:15px;background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <span style="font-size:16px;">💡</span>
+                    <strong style="color:#389e0d;">邀请码使用说明</strong>
+                  </div>
+                  <div style="color:#52c41a;line-height:1.6;font-size:14px;">
+                    <p style="margin:5px 0;">• 开启"开放用户注册"后，可配合"需要邀请码"限制注册</p>
+                    <p style="margin:5px 0;">• 每个邀请码可设置使用次数，用完自动失效</p>
+                    <p style="margin:5px 0;">• 可设置邀请码关联的试用天数，注册用户自动获得对应时长</p>
+                  </div>
+                </div>
+                
+                <h3 style="margin-bottom:15px;">生成邀请码</h3>
+                <div class="grid">
+                  <div>
+                    <label>邀请码 <span style="color:#999;font-size:12px;">(留空随机生成)</span></label>
+                    <input type="text" id="inviteCode" placeholder="留空自动生成8位邀请码">
+                  </div>
+                  <div>
+                    <label>可使用次数</label>
+                    <input type="number" id="inviteMaxUses" value="1" min="1" placeholder="默认1次">
+                  </div>
+                </div>
+                <div class="grid" style="margin-top:10px;">
+                  <div>
+                    <label>赠送试用天数 <span style="color:#999;font-size:12px;">(0表示不赠送)</span></label>
+                    <input type="number" id="inviteTrialDays" value="0" min="0" placeholder="注册后赠送的天数">
+                  </div>
+                  <div>
+                    <label>备注</label>
+                    <input type="text" id="inviteRemark" placeholder="可选，例如：给某渠道">
+                  </div>
+                </div>
+                <div style="margin-top:15px;">
+                  <button onclick="createInviteCode()" class="btn-primary">生成邀请码</button>
+                </div>
+              </div>
+              
+              <div class="card">
+                <h3 style="margin-bottom:15px;">邀请码列表</h3>
+                <div id="inviteCodesList"></div>
+              </div>
+            </div>
+          </div>
+
           <!-- 用户管理 -->
           <div id="section-users" class="section">
             <div class="content-header">
@@ -2041,6 +2264,10 @@ async function handleAdminPanel(request, env, adminPath) {
         <div class="grid">
           <div><label>备注名称</label><input type="text" id="name" placeholder="默认 '未命名'"></div>
           <div><label>到期时间</label><input type="date" id="expiryDate"></div>
+        </div>
+        <div class="grid" style="margin-top:10px">
+          <div><label>前端用户名 <span style="color:#999;font-size:12px;">(留空随机生成)</span></label><input type="text" id="frontUsername" placeholder="留空随机生成6位用户名"></div>
+          <div><label>前端密码 <span style="color:#999;font-size:12px;">(留空与用户名相同)</span></label><input type="text" id="frontPassword" placeholder="留空默认与用户名相同"></div>
         </div>
         <div style="margin-top:10px"><label>自定义 UUID (可选)</label><textarea id="uuids" style="min-height:60px" placeholder="留空自动生成"></textarea></div>
         <div style="margin-top:15px;"><button onclick="addUser()" id="addBtn" class="btn-primary">生成 / 添加用户</button></div>
@@ -2075,7 +2302,12 @@ async function handleAdminPanel(request, env, adminPath) {
           <input type="hidden" id="editUuid">
           <div style="margin-bottom:15px"><label>UUID</label><input type="text" id="editUuidDisplay" disabled style="background:#f5f5f5;color:#999"></div>
           <div style="margin-bottom:15px"><label>备注名称</label><input type="text" id="editName"></div>
-          <div style="margin-bottom:20px"><label>到期时间</label><input type="date" id="editExpiryDate"></div>
+          <div style="margin-bottom:15px"><label>到期时间</label><input type="date" id="editExpiryDate"></div>
+          <div style="margin-bottom:15px;padding:15px;background:#f9f9f9;border-radius:8px;border:1px solid #e8e8e8;">
+            <div style="margin-bottom:10px;font-weight:600;color:#666;">📝 前端账号管理</div>
+            <div id="editAccountInfo" style="margin-bottom:10px;font-size:13px;color:#999;">加载中...</div>
+            <div style="margin-bottom:10px"><label>新密码 <span style="color:#999;font-size:12px;">(留空不修改)</span></label><input type="text" id="editNewPassword" placeholder="输入新密码，留空则不修改"></div>
+          </div>
           <div style="text-align:right;"><button onclick="closeEdit()" style="background:#999;margin-right:10px">取消</button><button onclick="saveUserEdit()" id="editSaveBtn" class="btn-primary">保存</button></div>
         </div>
       </div>
@@ -2118,6 +2350,34 @@ async function handleAdminPanel(request, env, adminPath) {
           <div style="text-align:right;">
             <button onclick="closeAnnouncementEdit()" style="background:#999;margin-right:10px">取消</button>
             <button onclick="saveAnnouncementEdit()" id="editAnnouncementSaveBtn" class="btn-primary">保存</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 编辑邀请码弹窗 -->
+      <div class="modal-overlay" id="editInviteModal">
+        <div class="modal" style="max-width:450px;">
+          <h3>编辑邀请码</h3>
+          <input type="hidden" id="editInviteId">
+          <div style="margin-bottom:15px">
+            <label>邀请码</label>
+            <input type="text" id="editInviteCode" placeholder="邀请码">
+          </div>
+          <div style="margin-bottom:15px">
+            <label>可使用次数</label>
+            <input type="number" id="editInviteMaxUses" min="1" value="1">
+          </div>
+          <div style="margin-bottom:15px">
+            <label>赠送试用天数 (0表示不赠送)</label>
+            <input type="number" id="editInviteTrialDays" min="0" value="0">
+          </div>
+          <div style="margin-bottom:15px">
+            <label>备注</label>
+            <input type="text" id="editInviteRemark" placeholder="可选">
+          </div>
+          <div style="text-align:right;">
+            <button onclick="closeEditInviteModal()" style="background:#999;margin-right:10px">取消</button>
+            <button onclick="saveInviteCode()" class="btn-primary">保存</button>
           </div>
         </div>
       </div>
@@ -2375,6 +2635,9 @@ async function handleAdminPanel(request, env, adminPath) {
           const siteName = document.getElementById('siteNameInput').value;
           const enableRegister = document.getElementById('enableRegisterCheck').checked;
           const autoApproveOrder = document.getElementById('autoApproveOrderCheck').checked;
+          const enableTrial = document.getElementById('enableTrialCheck').checked;
+          const trialDays = document.getElementById('trialDays').value;
+          const requireInviteCode = document.getElementById('requireInviteCodeCheck').checked;
           const pendingOrderExpiry = document.getElementById('pendingOrderExpiry').value;
           const paymentOrderExpiry = document.getElementById('paymentOrderExpiry').value;
           const customLink1Name = document.getElementById('customLink1Name').value;
@@ -2385,12 +2648,22 @@ async function handleAdminPanel(request, env, adminPath) {
           fd.append('siteName', siteName);
           fd.append('enableRegister', enableRegister);
           fd.append('autoApproveOrder', autoApproveOrder);
+          fd.append('enableTrial', enableTrial);
+          fd.append('trialDays', trialDays);
+          fd.append('requireInviteCode', requireInviteCode);
           fd.append('pendingOrderExpiry', pendingOrderExpiry);
           fd.append('paymentOrderExpiry', paymentOrderExpiry);
           fd.append('customLink1Name', customLink1Name);
           fd.append('customLink1Url', customLink1Url);
           fd.append('customLink2Name', customLink2Name);
           fd.append('customLink2Url', customLink2Url);
+          
+          // 更新试用天数选择器的禁用状态
+          const trialDaysSelect = document.getElementById('trialDays');
+          if (trialDaysSelect) {
+            trialDaysSelect.parentElement.style.opacity = enableTrial ? '1' : '0.5';
+            trialDaysSelect.parentElement.style.pointerEvents = enableTrial ? 'auto' : 'none';
+          }
           
           try {
             const res = await fetch('/api/admin/updateSystemSettings', { method: 'POST', body: fd });
@@ -2594,8 +2867,8 @@ async function handleAdminPanel(request, env, adminPath) {
           if (saveDomainBtn) { saveDomainBtn.innerText = '保存配置'; saveDomainBtn.disabled = false; }
         }
 
-        function addUser() { document.getElementById('addBtn').disabled=true; api('/api/admin/add', { name: document.getElementById('name').value, expiryDate: document.getElementById('expiryDate').value, uuids: document.getElementById('uuids').value }); }
-        function saveUserEdit() { document.getElementById('editSaveBtn').disabled=true; api('/api/admin/update', { uuid: document.getElementById('editUuid').value, name: document.getElementById('editName').value, expiryDate: document.getElementById('editExpiryDate').value }); }
+        function addUser() { document.getElementById('addBtn').disabled=true; api('/api/admin/add', { name: document.getElementById('name').value, expiryDate: document.getElementById('expiryDate').value, uuids: document.getElementById('uuids').value, frontUsername: document.getElementById('frontUsername').value, frontPassword: document.getElementById('frontPassword').value }); }
+        function saveUserEdit() { document.getElementById('editSaveBtn').disabled=true; api('/api/admin/update', { uuid: document.getElementById('editUuid').value, name: document.getElementById('editName').value, expiryDate: document.getElementById('editExpiryDate').value, newPassword: document.getElementById('editNewPassword').value }); }
         
         // 单个操作
         function toggleStatus(uuid, isEnable) { api('/api/admin/status', { uuids: uuid, enabled: isEnable ? 'true' : 'false' }); }
@@ -2624,8 +2897,12 @@ async function handleAdminPanel(request, env, adminPath) {
         }
         
         function copySubByType(uuid, type) {
-            let domain = document.getElementById('subUrl').value.trim();
-            if (!domain) return toast('❌ 请先配置订阅地址');
+            let domainInput = document.getElementById('subUrl').value.trim();
+            if (!domainInput) return toast('❌ 请先配置订阅地址');
+            // 支持多个地址用逗号分隔，随机选择一个
+            const domainList = domainInput.split(',').map(d => d.trim()).filter(d => d);
+            if (domainList.length === 0) return toast('❌ 请先配置订阅地址');
+            let domain = domainList[Math.floor(Math.random() * domainList.length)];
             if (domain.endsWith('/')) domain = domain.slice(0, -1);
             if (!domain.startsWith('http')) domain = 'https://' + domain;
             const originalUrl = domain + '/' + uuid;
@@ -2679,7 +2956,28 @@ async function handleAdminPanel(request, env, adminPath) {
         document.addEventListener('click', () => {
             document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
         });
-        function openEdit(uuid, name, exp) { document.getElementById('editUuid').value=uuid; document.getElementById('editUuidDisplay').value=uuid; document.getElementById('editName').value=name; document.getElementById('editExpiryDate').value=exp; document.getElementById('editModal').style.display='flex'; }
+        function openEdit(uuid, name, exp) { 
+          document.getElementById('editUuid').value=uuid; 
+          document.getElementById('editUuidDisplay').value=uuid; 
+          document.getElementById('editName').value=name; 
+          document.getElementById('editExpiryDate').value=exp; 
+          document.getElementById('editNewPassword').value=''; 
+          document.getElementById('editModal').style.display='flex'; 
+          // 加载关联的前端账号信息
+          document.getElementById('editAccountInfo').innerHTML = '加载中...';
+          fetch('/api/admin/getUserAccount?uuid=' + encodeURIComponent(uuid))
+            .then(r => r.json())
+            .then(data => {
+              if(data.success && data.account) {
+                document.getElementById('editAccountInfo').innerHTML = '👤 关联账号：<b>' + data.account.username + '</b>';
+              } else {
+                document.getElementById('editAccountInfo').innerHTML = '⚠️ 该用户暂无关联的前端账号';
+              }
+            })
+            .catch(() => {
+              document.getElementById('editAccountInfo').innerHTML = '❌ 加载账号信息失败';
+            });
+        }
         function closeEdit() { document.getElementById('editModal').style.display='none'; }
         function copy(t) { navigator.clipboard.writeText(t); toast('复制成功'); }
 
@@ -3172,7 +3470,7 @@ async function handleAdminPanel(request, env, adminPath) {
               html += '<td><code>' + escapeHtml(c.code) + '</code></td>';
               html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(c.api_url) + '</td>';
               html += '<td>' + statusBadge + '</td>';
-              html += '<td>' + toggleBtn + ' <button onclick="editPaymentChannel(' + c.id + ', \\'' + escapeHtml(c.name).replace(/'/g, "\\'") + '\\', \\'' + escapeHtml(c.code).replace(/'/g, "\\'") + '\\', \\'' + escapeHtml(c.api_url).replace(/'/g, "\\'") + '\\')" class="btn-action" style="background:#1890ff;">编辑</button> <button onclick="deletePaymentChannel(' + c.id + ')" class="btn-action btn-del">删除</button></td>';
+              html += '<td>' + toggleBtn + ' <button onclick="editPaymentChannel(' + c.id + ', decodeURIComponent(&#39;' + encodeURIComponent(c.name) + '&#39;), decodeURIComponent(&#39;' + encodeURIComponent(c.code) + '&#39;), decodeURIComponent(&#39;' + encodeURIComponent(c.api_url) + '&#39;))" class="btn-action" style="background:#1890ff;">编辑</button> <button onclick="deletePaymentChannel(' + c.id + ')" class="btn-action btn-del">删除</button></td>';
               html += '</tr>';
             }
             html += '</tbody></table>';
@@ -3314,6 +3612,181 @@ async function handleAdminPanel(request, env, adminPath) {
           } catch(e) {
             alert('修改失败: ' + e.message);
           }
+        }
+        
+        // ==================== 邀请码管理 ====================
+        async function loadInviteCodes() {
+          try {
+            const res = await fetch('/api/admin/invites');
+            const data = await res.json();
+            
+            const container = document.getElementById('inviteCodesList');
+            if(!container) return;
+            
+            if(!data.success || !data.invites || data.invites.length === 0) {
+              container.innerHTML = '<p style="text-align:center;color:#999;padding:40px 0;">暂无邀请码</p>';
+              return;
+            }
+            
+            let html = '<div style="overflow-x:auto;"><table style="width:100%;min-width:700px;"><thead><tr><th>邀请码</th><th>可用/总数</th><th>赠送天数</th><th>备注</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+            
+            data.invites.forEach(item => {
+              const createdDate = formatBeijingDateTime(item.created_at);
+              const remaining = item.max_uses - item.used_count;
+              const isActive = item.enabled && remaining > 0;
+              const statusColor = isActive ? '#52c41a' : '#d9d9d9';
+              const statusText = !item.enabled ? '已禁用' : (remaining <= 0 ? '已用完' : '可用');
+              
+              html += '<tr>';
+              html += '<td style="font-family:monospace;font-weight:600;cursor:pointer;" onclick="copy(decodeURIComponent(&#39;' + encodeURIComponent(item.code || '') + '&#39;))">' + item.code + ' 📋</td>';
+              html += '<td>' + remaining + ' / ' + item.max_uses + '</td>';
+              html += '<td>' + (item.trial_days > 0 ? item.trial_days + '天' : '-') + '</td>';
+              html += '<td style="color:#666;">' + (item.remark || '-') + '</td>';
+              html += '<td style="color:#999;font-size:13px;">' + createdDate + '</td>';
+              html += '<td><span style="display:inline-block;padding:4px 12px;background:' + statusColor + ';color:white;border-radius:12px;font-size:12px;">' + statusText + '</span></td>';
+              html += '<td>';
+              if(item.enabled) {
+                html += '<button onclick="toggleInviteCode(' + item.id + ', false)" class="btn-action btn-secondary" style="margin-right:5px;">禁用</button>';
+              } else {
+                html += '<button onclick="toggleInviteCode(' + item.id + ', true)" class="btn-action btn-success" style="margin-right:5px;">启用</button>';
+              }
+              html += '<button onclick="editInviteCode(' + item.id + ', decodeURIComponent(&#39;' + encodeURIComponent(item.code || '') + '&#39;), ' + item.max_uses + ', ' + item.trial_days + ', decodeURIComponent(&#39;' + encodeURIComponent(item.remark || '') + '&#39;))" class="btn-action" style="margin-right:5px;background:#1890ff;">编辑</button>';
+              html += '<button onclick="deleteInviteCode(' + item.id + ')" class="btn-action btn-del">删除</button>';
+              html += '</td>';
+              html += '</tr>';
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+          } catch(e) {
+            console.error('加载邀请码失败:', e);
+          }
+        }
+        
+        async function createInviteCode() {
+          const code = document.getElementById('inviteCode').value.trim();
+          const maxUses = document.getElementById('inviteMaxUses').value || 1;
+          const trialDays = document.getElementById('inviteTrialDays').value || 0;
+          const remark = document.getElementById('inviteRemark').value.trim();
+          
+          const form = new FormData();
+          if(code) form.append('code', code);
+          form.append('max_uses', maxUses);
+          form.append('trial_days', trialDays);
+          if(remark) form.append('remark', remark);
+          
+          try {
+            const res = await fetch('/api/admin/invites/create', { method: 'POST', body: form });
+            const result = await res.json();
+            
+            if(res.ok && result.success) {
+              toast('✅ 邀请码已生成: ' + result.code);
+              document.getElementById('inviteCode').value = '';
+              document.getElementById('inviteMaxUses').value = '1';
+              document.getElementById('inviteTrialDays').value = '0';
+              document.getElementById('inviteRemark').value = '';
+              loadInviteCodes();
+            } else {
+              alert('生成失败: ' + (result.error || '未知错误'));
+            }
+          } catch(e) {
+            alert('生成失败: ' + e.message);
+          }
+        }
+        
+        async function toggleInviteCode(id, enabled) {
+          const form = new FormData();
+          form.append('id', id);
+          form.append('enabled', enabled);
+          
+          try {
+            const res = await fetch('/api/admin/invites/toggle', { method: 'POST', body: form });
+            const result = await res.json();
+            
+            if(res.ok && result.success) {
+              toast(enabled ? '✅ 已启用' : '✅ 已禁用');
+              loadInviteCodes();
+            } else {
+              alert('操作失败');
+            }
+          } catch(e) {
+            alert('操作失败: ' + e.message);
+          }
+        }
+        
+        async function deleteInviteCode(id) {
+          if(!confirm('确定删除此邀请码？')) return;
+          
+          const form = new FormData();
+          form.append('id', id);
+          
+          try {
+            const res = await fetch('/api/admin/invites/delete', { method: 'POST', body: form });
+            const result = await res.json();
+            
+            if(res.ok && result.success) {
+              toast('✅ 已删除');
+              loadInviteCodes();
+            } else {
+              alert('删除失败');
+            }
+          } catch(e) {
+            alert('删除失败: ' + e.message);
+          }
+        }
+        
+        // 编辑邀请码
+        function editInviteCode(id, code, maxUses, trialDays, remark) {
+          document.getElementById('editInviteId').value = id;
+          document.getElementById('editInviteCode').value = code;
+          document.getElementById('editInviteMaxUses').value = maxUses;
+          document.getElementById('editInviteTrialDays').value = trialDays;
+          document.getElementById('editInviteRemark').value = remark;
+          document.getElementById('editInviteModal').style.display = 'flex';
+        }
+        
+        function closeEditInviteModal() {
+          document.getElementById('editInviteModal').style.display = 'none';
+        }
+        
+        async function saveInviteCode() {
+          const id = document.getElementById('editInviteId').value;
+          const code = document.getElementById('editInviteCode').value.trim();
+          const maxUses = document.getElementById('editInviteMaxUses').value || 1;
+          const trialDays = document.getElementById('editInviteTrialDays').value || 0;
+          const remark = document.getElementById('editInviteRemark').value.trim();
+          
+          if(!code) {
+            alert('邀请码不能为空');
+            return;
+          }
+          
+          const form = new FormData();
+          form.append('id', id);
+          form.append('code', code);
+          form.append('max_uses', maxUses);
+          form.append('trial_days', trialDays);
+          form.append('remark', remark);
+          
+          try {
+            const res = await fetch('/api/admin/invites/update', { method: 'POST', body: form });
+            const result = await res.json();
+            
+            if(res.ok && result.success) {
+              toast('✅ 保存成功');
+              closeEditInviteModal();
+              loadInviteCodes();
+            } else {
+              alert('保存失败: ' + (result.error || '未知错误'));
+            }
+          } catch(e) {
+            alert('保存失败: ' + e.message);
+          }
+        }
+        
+        // 页面加载时初始化邀请码列表
+        if(document.getElementById('inviteCodesList')) {
+          loadInviteCodes();
         }
         
         // 管理员登出
@@ -3648,6 +4121,7 @@ async function handleUserPanel(request, env) {
 async function renderAuthPage(env) {
     const settings = await dbGetSettings(env) || { subUrl: "", enableRegister: false };
     const enableRegister = settings.enableRegister === true;
+    const requireInviteCode = settings.requireInviteCode === true;
     const subUrl = settings.subUrl || "";
     const siteName = settings.siteName || "CFly";
     const adminPath = env.ADMIN_PATH || '/admin';
@@ -3924,6 +4398,12 @@ async function renderAuthPage(env) {
                         <label>确认密码</label>
                         <input type="password" name="confirm_password" required placeholder="请再次输入密码">
                     </div>
+                    ${requireInviteCode ? `
+                    <div class="form-group">
+                        <label>邀请码 <span style="color:#ff4d4f;">*</span></label>
+                        <input type="text" name="invite_code" required placeholder="请输入邀请码">
+                    </div>
+                    ` : ''}
                     <button type="submit" id="register-btn">注册</button>
                 </form>
                 ` : `
@@ -4061,14 +4541,17 @@ async function renderUserDashboard(env, userInfo) {
     const shadowrocketUrl = apiBaseUrl + '?target=shadowrocket&url=' + encodeURIComponent(originalSubUrl);
     const quanxUrl = apiBaseUrl + '?target=quanx&url=' + encodeURIComponent(originalSubUrl);
     
-    const expiryText = userInfo.expiry ? formatBeijingDateTime(userInfo.expiry) : '永久有效';
+    const expiryText = userInfo.expiry ? formatBeijingDateTime(userInfo.expiry) : '未激活';
     const expiryDate = userInfo.expiry ? formatBeijingDate(userInfo.expiry) : '';
     const createdDate = formatBeijingDateTime(userInfo.createdAt);
     const lastLoginDate = formatBeijingDateTime(userInfo.lastLogin);
     
     let statusClass = 'status-active';
     let statusText = '✅ 正常';
-    if (userInfo.expired) {
+    if (!userInfo.expiry) {
+        statusClass = 'status-expired';
+        statusText = '⚠️ 未激活';
+    } else if (userInfo.expired) {
         statusClass = 'status-expired';
         statusText = '❌ 已过期';
     } else if (!userInfo.enabled) {
@@ -4719,8 +5202,15 @@ async function renderUserDashboard(env, userInfo) {
         
         // 订阅转换后端配置
         const apiBaseUrl = 'https://url.v1.mk/sub';
-        const subUrl = \`${subUrl}\`;
+        const subUrlList = \`${subUrl}\`.split(',').map(s => s.trim()).filter(s => s);
         const uuid = \`${userInfo.uuid}\`;
+        
+        // 随机获取一个订阅地址
+        function getRandomSubUrl() {
+            if (subUrlList.length === 0) return '';
+            const randomIndex = Math.floor(Math.random() * subUrlList.length);
+            return subUrlList[randomIndex];
+        }
 
         function showToast(message) {
             const toast = document.getElementById('toast');
@@ -4749,6 +5239,7 @@ async function renderUserDashboard(env, userInfo) {
         
         function copySubOnly(type) {
             event.stopPropagation();
+            const subUrl = getRandomSubUrl();
             if (!subUrl) {
                 showToast('\u274c \u8ba2\u9605\u5730\u5740\u672a\u914d\u7f6e');
                 return;
@@ -4794,6 +5285,7 @@ async function renderUserDashboard(env, userInfo) {
         
         function importSub(type) {
             event.stopPropagation();
+            const subUrl = getRandomSubUrl();
             if (!subUrl) {
                 showToast('\u274c \u8ba2\u9605\u5730\u5740\u672a\u914d\u7f6e');
                 return;
@@ -5178,8 +5670,8 @@ async function renderUserDashboard(env, userInfo) {
                     return;
                 }
                 
-                // 如果是自动审核通过，无需支付
-                if(createResult.message && createResult.message.includes('自动审核')) {
+                // 如果不需要支付（免费套餐已自动审核或待审核），直接显示消息
+                if(!createResult.need_payment) {
                     showToast('✅ ' + createResult.message);
                     return;
                 }
@@ -5790,20 +6282,7 @@ async function handleUserCreateOrder(request, env) {
         const autoApproveEnabled = settings.autoApproveOrder === true;
         const autoApproveVersion = settings.autoApproveVersion || 0; // 用于追踪开关重置次数
         
-        // 检查用户是否可以使用自动审核
-        let canAutoApprove = false;
-        if (autoApproveEnabled) {
-            // 检查用户账户中的自动审核版本号
-            const userAccount = await env.DB.prepare(
-                "SELECT auto_approve_version FROM user_accounts WHERE id = ?"
-            ).bind(session.user_id).first();
-            
-            // 如果用户的版本号小于当前系统版本号，说明可以使用本轮自动审核
-            if (!userAccount || userAccount.auto_approve_version < autoApproveVersion) {
-                canAutoApprove = true;
-            }
-        }
-        
+        // 先获取套餐信息
         const plan = await env.DB.prepare(
             "SELECT * FROM subscription_plans WHERE id = ? AND enabled = 1"
         ).bind(planId).first();
@@ -5813,6 +6292,23 @@ async function handleUserCreateOrder(request, env) {
                 status: 404, 
                 headers: { 'Content-Type': 'application/json; charset=utf-8' } 
             });
+        }
+        
+        // 检查用户是否可以使用自动审核
+        // 重要：自动审核只对免费套餐（price = 0）生效，付费套餐必须等待支付
+        let canAutoApprove = false;
+        const isFreeplan = plan.price === 0 || plan.price === '0';
+        
+        if (autoApproveEnabled && isFreeplan) {
+            // 检查用户账户中的自动审核版本号
+            const userAccount = await env.DB.prepare(
+                "SELECT auto_approve_version FROM user_accounts WHERE id = ?"
+            ).bind(session.user_id).first();
+            
+            // 如果用户的版本号小于当前系统版本号，说明可以使用本轮自动审核
+            if (!userAccount || userAccount.auto_approve_version < autoApproveVersion) {
+                canAutoApprove = true;
+            }
         }
         
         // 创建订单
@@ -5870,10 +6366,22 @@ async function handleUserCreateOrder(request, env) {
             });
         }
         
-        // 如果开启了自动审核但用户已使用过，提示用户订单已提交等待审核
-        const message = autoApproveEnabled 
-            ? '您已使用过自动审核，订单已提交，请等待管理员审核' 
-            : '订单创建成功，请等待管理员审核';
+        // 根据套餐类型和自动审核状态返回不同的消息
+        let message;
+        let needPayment = false;
+        
+        if (isFreeplan) {
+            // 免费套餐
+            if (autoApproveEnabled) {
+                message = '您已使用过免费试用，订单已提交，请等待管理员审核';
+            } else {
+                message = '订单创建成功，请等待管理员审核';
+            }
+        } else {
+            // 付费套餐，需要支付
+            message = '订单创建成功，请完成支付';
+            needPayment = true;
+        }
         
         // 获取刚创建的订单ID
         const newOrder = await env.DB.prepare(
@@ -5883,7 +6391,8 @@ async function handleUserCreateOrder(request, env) {
         return new Response(JSON.stringify({ 
             success: true, 
             message: message,
-            order_id: newOrder ? newOrder.id : null
+            order_id: newOrder ? newOrder.id : null,
+            need_payment: needPayment
         }), { 
             status: 200, 
             headers: { 'Content-Type': 'application/json; charset=utf-8' } 
@@ -6388,6 +6897,279 @@ async function handleUserCheckin(request, env) {
 // =============================================================================
 // 支付通道管理 API
 // =============================================================================
+
+// 管理员获取用户关联的前端账号信息
+async function handleAdminGetUserAccount(request, env) {
+    if (!(await checkAuth(request, env))) {
+        return new Response(JSON.stringify({ error: '未授权' }), { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+    
+    try {
+        const url = new URL(request.url);
+        const uuid = url.searchParams.get('uuid');
+        
+        if (!uuid) {
+            return new Response(JSON.stringify({ error: '缺少 UUID 参数' }), { 
+                status: 400, 
+                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+            });
+        }
+        
+        const account = await env.DB.prepare(
+            "SELECT id, username, email, created_at, last_login FROM user_accounts WHERE uuid = ?"
+        ).bind(uuid).first();
+        
+        return new Response(JSON.stringify({ 
+            success: true, 
+            account: account || null
+        }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    } catch (e) {
+        console.error('获取用户账号错误:', e);
+        return new Response(JSON.stringify({ error: '服务器错误' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+}
+
+// =============================================================================
+// 邀请码管理 API
+// =============================================================================
+
+// 获取邀请码列表
+async function handleAdminGetInvites(request, env) {
+    if (!(await checkAuth(request, env))) {
+        return new Response(JSON.stringify({ error: '未授权' }), { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+    
+    try {
+        // 首先确保表存在
+        await env.DB.prepare(`
+            CREATE TABLE IF NOT EXISTS invite_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL,
+                max_uses INTEGER NOT NULL DEFAULT 1,
+                used_count INTEGER NOT NULL DEFAULT 0,
+                trial_days INTEGER NOT NULL DEFAULT 0,
+                remark TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at INTEGER NOT NULL
+            )
+        `).run();
+        
+        const { results } = await env.DB.prepare(
+            "SELECT * FROM invite_codes ORDER BY created_at DESC"
+        ).all();
+        
+        return new Response(JSON.stringify({ 
+            success: true, 
+            invites: results || []
+        }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    } catch (e) {
+        console.error('获取邀请码错误:', e);
+        return new Response(JSON.stringify({ error: '服务器错误' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+}
+
+// 创建邀请码
+async function handleAdminCreateInvite(request, env) {
+    if (!(await checkAuth(request, env))) {
+        return new Response(JSON.stringify({ error: '未授权' }), { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+    
+    try {
+        // 确保表存在
+        await env.DB.prepare(`
+            CREATE TABLE IF NOT EXISTS invite_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL,
+                max_uses INTEGER NOT NULL DEFAULT 1,
+                used_count INTEGER NOT NULL DEFAULT 0,
+                trial_days INTEGER NOT NULL DEFAULT 0,
+                remark TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at INTEGER NOT NULL
+            )
+        `).run();
+        
+        const formData = await request.formData();
+        let code = formData.get('code')?.trim();
+        const maxUses = parseInt(formData.get('max_uses')) || 1;
+        const trialDays = parseInt(formData.get('trial_days')) || 0;
+        const remark = formData.get('remark')?.trim() || '';
+        
+        // 如果没有提供邀请码，随机生成8位
+        if (!code) {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            code = '';
+            for (let i = 0; i < 8; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+        }
+        
+        // 检查邀请码是否已存在
+        const existing = await env.DB.prepare(
+            "SELECT id FROM invite_codes WHERE code = ?"
+        ).bind(code).first();
+        
+        if (existing) {
+            return new Response(JSON.stringify({ error: '邀请码已存在' }), { 
+                status: 400, 
+                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+            });
+        }
+        
+        await env.DB.prepare(
+            "INSERT INTO invite_codes (code, max_uses, trial_days, remark, created_at) VALUES (?, ?, ?, ?, ?)"
+        ).bind(code, maxUses, trialDays, remark, Date.now()).run();
+        
+        return new Response(JSON.stringify({ 
+            success: true, 
+            code: code
+        }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    } catch (e) {
+        console.error('创建邀请码错误:', e);
+        return new Response(JSON.stringify({ error: '服务器错误' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+}
+
+// 切换邀请码状态
+async function handleAdminToggleInvite(request, env) {
+    if (!(await checkAuth(request, env))) {
+        return new Response(JSON.stringify({ error: '未授权' }), { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+    
+    try {
+        const formData = await request.formData();
+        const id = parseInt(formData.get('id'));
+        const enabled = formData.get('enabled') === 'true' ? 1 : 0;
+        
+        await env.DB.prepare(
+            "UPDATE invite_codes SET enabled = ? WHERE id = ?"
+        ).bind(enabled, id).run();
+        
+        return new Response(JSON.stringify({ success: true }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    } catch (e) {
+        console.error('切换邀请码状态错误:', e);
+        return new Response(JSON.stringify({ error: '服务器错误' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+}
+
+// 删除邀请码
+async function handleAdminDeleteInvite(request, env) {
+    if (!(await checkAuth(request, env))) {
+        return new Response(JSON.stringify({ error: '未授权' }), { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+    
+    try {
+        const formData = await request.formData();
+        const id = parseInt(formData.get('id'));
+        
+        await env.DB.prepare(
+            "DELETE FROM invite_codes WHERE id = ?"
+        ).bind(id).run();
+        
+        return new Response(JSON.stringify({ success: true }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    } catch (e) {
+        console.error('删除邀请码错误:', e);
+        return new Response(JSON.stringify({ error: '服务器错误' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+}
+
+// 编辑邀请码
+async function handleAdminUpdateInvite(request, env) {
+    if (!(await checkAuth(request, env))) {
+        return new Response(JSON.stringify({ error: '未授权' }), { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+    
+    try {
+        const formData = await request.formData();
+        const id = parseInt(formData.get('id'));
+        const code = formData.get('code')?.trim();
+        const maxUses = parseInt(formData.get('max_uses')) || 1;
+        const trialDays = parseInt(formData.get('trial_days')) || 0;
+        const remark = formData.get('remark')?.trim() || '';
+        
+        if (!code) {
+            return new Response(JSON.stringify({ error: '邀请码不能为空' }), { 
+                status: 400, 
+                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+            });
+        }
+        
+        // 检查邀请码是否已被其他记录使用
+        const existing = await env.DB.prepare(
+            "SELECT id FROM invite_codes WHERE code = ? AND id != ?"
+        ).bind(code, id).first();
+        
+        if (existing) {
+            return new Response(JSON.stringify({ error: '邀请码已存在' }), { 
+                status: 400, 
+                headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+            });
+        }
+        
+        await env.DB.prepare(
+            "UPDATE invite_codes SET code = ?, max_uses = ?, trial_days = ?, remark = ? WHERE id = ?"
+        ).bind(code, maxUses, trialDays, remark, id).run();
+        
+        return new Response(JSON.stringify({ success: true }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    } catch (e) {
+        console.error('编辑邀请码错误:', e);
+        return new Response(JSON.stringify({ error: '服务器错误' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+        });
+    }
+}
 
 // 管理员获取支付通道列表
 async function handleAdminGetPaymentChannels(request, env) {
