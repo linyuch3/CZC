@@ -964,11 +964,18 @@ function importData(req, res) {
     try {
         const importBody = req.body;
         
-        if (!importBody.data) {
+        // 兼容两种备份格式：
+        // 1. 新格式: { exportTime, version, data: {...} }
+        // 2. 旧格式/简化格式: { users: [...], userAccounts: [...], ... }
+        let data;
+        if (importBody.data) {
+            data = importBody.data;
+        } else if (importBody.users || importBody.userAccounts || importBody.settings) {
+            data = importBody;
+        } else {
             return res.status(400).json({ error: '无效的备份文件格式' });
         }
         
-        const data = importBody.data;
         const database = db.getDb(); // 获取数据库实例
         
         let importedCounts = {
@@ -1026,13 +1033,15 @@ function importData(req, res) {
             }
         }
 
-        // 4. 导入 plans
+        // 4. 导入 plans (subscription_plans 表)
         if (data.plans && data.plans.length > 0) {
             for (const plan of data.plans) {
                 try {
+                    // 兼容 duration_days 和 duration 两种字段名
+                    const durationDays = plan.duration_days || plan.duration || 30;
                     database.prepare(
-                        "INSERT OR REPLACE INTO plans (id, name, duration, description, price, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-                    ).run(plan.id, plan.name, plan.duration, plan.description, plan.price, plan.enabled !== undefined ? plan.enabled : 1, plan.created_at);
+                        "INSERT OR REPLACE INTO subscription_plans (id, name, description, duration_days, price, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                    ).run(plan.id, plan.name, plan.description || '', durationDays, plan.price, plan.enabled !== undefined ? plan.enabled : 1, plan.created_at);
                     importedCounts.plans++;
                 } catch (e) {
                     console.error('导入套餐失败:', plan.name, e.message);
@@ -1044,12 +1053,13 @@ function importData(req, res) {
         if (data.orders && data.orders.length > 0) {
             for (const order of data.orders) {
                 try {
+                    // 使用实际的表字段: user_id, plan_id, amount, status, created_at, paid_at
                     database.prepare(
-                        "INSERT OR REPLACE INTO orders (id, order_no, user_id, plan_id, plan_name, duration, price, status, created_at, paid_at, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                    ).run(order.id, order.order_no, order.user_id, order.plan_id, order.plan_name, order.duration, order.price, order.status, order.created_at, order.paid_at, order.payment_method);
+                        "INSERT OR REPLACE INTO orders (id, user_id, plan_id, amount, status, created_at, paid_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                    ).run(order.id, order.user_id, order.plan_id, order.amount || order.price || 0, order.status, order.created_at, order.paid_at);
                     importedCounts.orders++;
                 } catch (e) {
-                    console.error('导入订单失败:', order.order_no, e.message);
+                    console.error('导入订单失败:', order.id, e.message);
                 }
             }
         }
@@ -1059,8 +1069,8 @@ function importData(req, res) {
             for (const ann of data.announcements) {
                 try {
                     database.prepare(
-                        "INSERT OR REPLACE INTO announcements (id, title, content, enabled, created_at) VALUES (?, ?, ?, ?, ?)"
-                    ).run(ann.id, ann.title, ann.content, ann.enabled !== undefined ? ann.enabled : 1, ann.created_at);
+                        "INSERT OR REPLACE INTO announcements (id, title, content, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+                    ).run(ann.id, ann.title, ann.content, ann.enabled !== undefined ? ann.enabled : 1, ann.created_at, ann.updated_at || ann.created_at);
                     importedCounts.announcements++;
                 } catch (e) {
                     console.error('导入公告失败:', ann.title, e.message);
