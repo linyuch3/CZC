@@ -68,21 +68,58 @@ tailwind.config = {
 <style>
 body { font-family: 'Inter', 'Noto Sans SC', sans-serif; -webkit-font-smoothing: antialiased; }
 .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+
+/* 全球边缘节点网络背景 */
+#network-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+#network-bg canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.content-wrapper {
+  position: relative;
+  z-index: 1;
+}
+
+/* 登录卡片增强对比 */
+.login-card {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+}
+
+.dark .login-card {
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 60px rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
 </style>
 </head>
-<body class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-950 dark:to-zinc-900 min-h-screen flex items-center justify-center p-4">
-<div class="w-full max-w-md">
+<body class="bg-slate-50 dark:bg-zinc-950 min-h-screen flex items-center justify-center p-4 overflow-hidden">
+<!-- 全球边缘节点网络背景 -->
+<div id="network-bg"></div>
+
+<div class="content-wrapper w-full max-w-md">
 <div class="text-center mb-8">
 <div class="inline-flex items-center gap-2 mb-4">
-<div class="w-10 h-10 bg-primary rounded flex items-center justify-center">
+<div class="w-10 h-10 bg-primary rounded flex items-center justify-center shadow-lg">
 <span class="text-white material-symbols-outlined text-lg">bolt</span>
 </div>
-<span class="font-bold text-2xl tracking-tight">${siteName}</span>
+<span class="font-bold text-2xl tracking-tight text-slate-900 dark:text-white">${siteName}</span>
 </div>
-<p class="text-slate-600 dark:text-zinc-400">欢迎回来</p>
+<p class="text-slate-600 dark:text-zinc-400">全球边缘加速网络</p>
 </div>
 
-<div class="bg-white dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-lg overflow-hidden shadow-sm">
+<div class="login-card border border-slate-200 dark:border-zinc-800 rounded-lg overflow-hidden">
 <div class="flex border-b border-slate-200 dark:border-zinc-800">
 <button onclick="switchTab('login')" id="loginTab" class="flex-1 px-4 py-3 text-sm font-medium transition-colors bg-white dark:bg-zinc-950 text-slate-900 dark:text-slate-100">登录</button>
 <button onclick="switchTab('register')" id="registerTab" class="flex-1 px-4 py-3 text-sm font-medium transition-colors text-slate-500 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-slate-100">注册</button>
@@ -111,10 +148,6 @@ ${!enableRegister ? '<div class="text-center text-slate-500 py-4">注册功能�
 <label class="text-sm font-medium text-slate-700 dark:text-zinc-300">密码</label>
 <input id="registerPassword" type="password" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="至少6个字符"/>
 </div>
-<div class="space-y-2">
-<label class="text-sm font-medium text-slate-700 dark:text-zinc-300">邮箱 <span class="text-slate-400">(可选)</span></label>
-<input id="registerEmail" type="email" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="用于找回密码"/>
-</div>
 ${requireInviteCode ? `<div class="space-y-2">
 <label class="text-sm font-medium text-slate-700 dark:text-zinc-300">邀请码</label>
 <input id="registerInviteCode" type="text" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入邀请码"/>
@@ -126,14 +159,165 @@ ${requireInviteCode ? `<div class="space-y-2">
 </div>
 </div>
 
-<div class="fixed bottom-6 right-6">
-<button onclick="document.documentElement.classList.toggle('dark')" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
+<div class="fixed bottom-6 right-6 z-10">
+<button onclick="document.documentElement.classList.toggle('dark');updateNetworkTheme();" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 shadow-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
 <span class="material-symbols-outlined dark:hidden">dark_mode</span>
 <span class="material-symbols-outlined hidden dark:block">light_mode</span>
 </button>
 </div>
 
 <script>
+// 全球边缘节点网络背景动画
+(function() {
+  const container = document.getElementById('network-bg');
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  container.appendChild(canvas);
+  
+  let width, height;
+  let nodes = [];
+  let animationId;
+  
+  // 初始化画布尺寸
+  function resizeCanvas() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+  }
+  
+  // 节点类
+  class Node {
+    constructor() {
+      this.x = Math.random() * width;
+      this.y = Math.random() * height;
+      this.vx = (Math.random() - 0.5) * 0.3;
+      this.vy = (Math.random() - 0.5) * 0.3;
+      this.radius = Math.random() * 2 + 1;
+      this.connections = [];
+    }
+    
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      
+      if (this.x < 0 || this.x > width) this.vx *= -1;
+      if (this.y < 0 || this.y > height) this.vy *= -1;
+    }
+    
+    draw() {
+      const isDark = document.documentElement.classList.contains('dark');
+      ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.4)';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  // 初始化节点
+  function initNodes() {
+    nodes = [];
+    const nodeCount = Math.floor((width * height) / 15000);
+    for (let i = 0; i < nodeCount; i++) {
+      nodes.push(new Node());
+    }
+  }
+  
+  // 绘制连接线
+  function drawConnections() {
+    const isDark = document.documentElement.classList.contains('dark');
+    const maxDistance = 150;
+    
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dy = nodes[i].y - nodes[j].y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < maxDistance) {
+          const opacity = (1 - distance / maxDistance) * 0.3;
+          const lineWidth = distance < 80 ? 1.5 : 1;
+          
+          ctx.strokeStyle = isDark 
+            ? \`rgba(255, 255, 255, \${opacity})\`
+            : \`rgba(0, 0, 0, \${opacity * 0.6})\`;
+          ctx.lineWidth = lineWidth;
+          ctx.beginPath();
+          ctx.moveTo(nodes[i].x, nodes[i].y);
+          ctx.lineTo(nodes[j].x, nodes[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+  
+  // 绘制世界地图轮廓（简化版）
+  function drawWorldMap() {
+    const isDark = document.documentElement.classList.contains('dark');
+    ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)';
+    ctx.lineWidth = 1;
+    
+    // 简化的大陆轮廓
+    const continents = [
+      // 北美洲
+      [[0.15, 0.2], [0.2, 0.15], [0.25, 0.2], [0.22, 0.35], [0.15, 0.4]],
+      // 南美洲
+      [[0.2, 0.45], [0.25, 0.5], [0.23, 0.65], [0.18, 0.6]],
+      // 欧洲
+      [[0.45, 0.15], [0.55, 0.18], [0.52, 0.3], [0.48, 0.28]],
+      // 非洲
+      [[0.48, 0.32], [0.55, 0.38], [0.52, 0.55], [0.45, 0.5]],
+      // 亚洲
+      [[0.58, 0.15], [0.75, 0.2], [0.8, 0.35], [0.7, 0.4], [0.6, 0.3]],
+      // 澳洲
+      [[0.75, 0.6], [0.82, 0.62], [0.8, 0.7], [0.73, 0.68]]
+    ];
+    
+    continents.forEach(points => {
+      ctx.beginPath();
+      points.forEach((point, i) => {
+        const x = point[0] * width;
+        const y = point[1] * height;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.stroke();
+    });
+  }
+  
+  // 动画循环
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+    
+    drawWorldMap();
+    drawConnections();
+    
+    nodes.forEach(node => {
+      node.update();
+      node.draw();
+    });
+    
+    animationId = requestAnimationFrame(animate);
+  }
+  
+  // 更新主题
+  window.updateNetworkTheme = function() {
+    // 主题切换时重绘一帧
+  };
+  
+  // 初始化
+  resizeCanvas();
+  initNodes();
+  animate();
+  
+  // 响应窗口大小变化
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    initNodes();
+  });
+})();
+
 function switchTab(tab) {
   document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
   document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
@@ -186,9 +370,10 @@ async function handleLogin() {
 async function handleRegister() {
   const username = document.getElementById('registerUsername').value;
   const password = document.getElementById('registerPassword').value;
-  const email = document.getElementById('registerEmail')?.value || '';
   const invite_code = document.getElementById('registerInviteCode')?.value || '';
   const errorEl = document.getElementById('registerError');
+  
+  errorEl.classList.add('hidden');
   
   if(!username || !password) {
     errorEl.textContent = '请填写完整信息';
@@ -200,13 +385,24 @@ async function handleRegister() {
     const res = await fetch('/api/user/register', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({username, password, email, invite_code})
+      body: JSON.stringify({username, password, email: '', invite_code})
     });
     const data = await res.json();
     
     if(res.ok && data.success) {
-      alert('注册成功！');
-      switchTab('login');
+      // 显示成功消息并切换到登录
+      const successDiv = document.createElement('div');
+      successDiv.className = 'mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-md text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2';
+      successDiv.innerHTML = '<span class="material-symbols-outlined text-[16px]">check_circle</span><span>注册成功！正在切换到登录...</span>';
+      
+      const registerForm = document.getElementById('registerForm');
+      registerForm.insertBefore(successDiv, registerForm.firstChild);
+      
+      setTimeout(() => {
+        successDiv.remove();
+        switchTab('login');
+        document.getElementById('loginUsername').value = username;
+      }, 1500);
     } else {
       errorEl.textContent = data.error || '注册失败';
       errorEl.classList.remove('hidden');
@@ -308,11 +504,75 @@ body { font-family: 'Inter', 'Noto Sans SC', sans-serif; -webkit-font-smoothing:
 .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
+/* Toast 动画 */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+/* 侧边栏移动端样式 */
+#sidebar-overlay {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#sidebar-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+aside {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  transition: transform 0.3s ease;
+}
+main {
+  min-height: 100vh;
+}
+@media (max-width: 768px) {
+  aside {
+    transform: translateX(-100%);
+  }
+  aside.mobile-open {
+    transform: translateX(0);
+  }
+  main {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+@media (min-width: 769px) {
+  aside {
+    transform: translateX(0);
+  }
+  main {
+    margin-left: 256px;
+  }
+}
 </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
-<div class="flex min-h-screen">
-<aside class="w-64 border-r border-slate-200 dark:border-zinc-800 hidden md:flex flex-col bg-white dark:bg-black h-screen sticky top-0">
+<!-- 移动端遮罩层 -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40" onclick="toggleSidebar()"></div>
+
+<!-- 侧边栏 -->
+<aside id="sidebar" class="w-64 border-r border-slate-200 dark:border-zinc-800 flex flex-col bg-white dark:bg-black h-screen">
 <div class="p-6 flex-shrink-0">
 <div class="flex items-center gap-2 mb-8">
 <div class="w-8 h-8 bg-primary rounded flex items-center justify-center">
@@ -343,38 +603,42 @@ body { font-family: 'Inter', 'Noto Sans SC', sans-serif; -webkit-font-smoothing:
 </div>
 </aside>
 
-<main class="flex-1 overflow-y-auto custom-scrollbar">
-<header class="h-16 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between px-8 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-10">
+<!-- 主内容区域 -->
+<main class="overflow-y-auto custom-scrollbar">
+<header class="h-16 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between px-4 md:px-8 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-10">
 <div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-slate-400">dashboard</span>
-<h1 class="text-sm font-semibold uppercase tracking-wider text-slate-500" id="pageTitle">Dashboard / Account</h1>
+<button onclick="toggleSidebar()" class="md:hidden p-2 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors -ml-2">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="material-symbols-outlined text-slate-400 hidden sm:block">dashboard</span>
+<h1 class="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500" id="pageTitle">Dashboard / Account</h1>
 </div>
 <div class="flex items-center gap-3">
-${quickLinks.map(link => `<a href="${link.url}" target="_blank" rel="noopener noreferrer" class="text-sm border border-slate-200 dark:border-zinc-800 px-3 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]">open_in_new</span>
-${link.name}
-</a>`).join('')}
+${quickLinks.map(link => '<a href="' + link.url + '" target="_blank" rel="noopener noreferrer" class="hidden sm:flex text-sm border border-slate-200 dark:border-zinc-800 px-3 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors items-center gap-2">' +
+'<span class="material-symbols-outlined text-[18px]">open_in_new</span>' +
+link.name +
+'</a>').join('')}
 <button onclick="showAnnouncements()" class="text-sm bg-primary text-white px-3 py-1.5 rounded hover:opacity-90 transition-opacity flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]">campaign</span>
-查看公告
+<span class="material-symbols-outlined text-[18px] hidden sm:block">campaign</span>
+<span class="hidden sm:inline">查看</span>公告
 </button>
 </div>
 </header>
 
-<div class="p-8 max-w-6xl mx-auto space-y-8">
+<div class="p-4 md:p-8 max-w-6xl mx-auto space-y-6 md:space-y-8">
 <!-- 账号信息页面 -->
 <div id="page-account">
 <section>
 <div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-[20px]">info</span>
-<h2 class="text-lg font-semibold tracking-tight">基本信息</h2>
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">info</span>
+<h2 class="text-base md:text-lg font-semibold tracking-tight">基本信息</h2>
 </div>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-<div class="p-5 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+<div class="p-4 md:p-5 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
 <p class="text-xs text-slate-500 dark:text-zinc-500 uppercase font-medium mb-1">用户名</p>
-<p class="text-xl font-bold">${user.username}</p>
+<p class="text-lg md:text-xl font-bold break-all">${user.username}</p>
 </div>
-<div class="p-5 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 flex flex-col justify-between">
+<div class="p-4 md:p-5 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 flex flex-col justify-between">
 <p class="text-xs text-slate-500 dark:text-zinc-500 uppercase font-medium mb-1">账号状态</p>
 <div>
 <span class="inline-flex items-center px-2 py-0.5 rounded border border-${statusColor}-200 dark:border-${statusColor}-900/50 bg-${statusColor}-50 dark:bg-${statusColor}-950/20 text-${statusColor}-700 dark:text-${statusColor}-400 text-xs font-medium">
@@ -383,77 +647,77 @@ ${statusText}
 </span>
 </div>
 </div>
-<div class="p-5 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
+<div class="p-4 md:p-5 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
 <p class="text-xs text-slate-500 dark:text-zinc-500 uppercase font-medium mb-1">注册时间</p>
-<p class="text-base font-medium">${regTime}</p>
+<p class="text-sm md:text-base font-medium">${regTime}</p>
 </div>
-<div class="p-5 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
+<div class="p-4 md:p-5 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
 <p class="text-xs text-slate-500 dark:text-zinc-500 uppercase font-medium mb-1">订阅到期时间</p>
-<p class="text-base font-medium">${expTime}</p>
+<p class="text-sm md:text-base font-medium break-all">${expTime}</p>
 </div>
 </div>
 </section>
 
 <section>
 <div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-[20px]">link</span>
-<h2 class="text-lg font-semibold tracking-tight">订阅链接</h2>
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">link</span>
+<h2 class="text-base md:text-lg font-semibold tracking-tight">订阅链接</h2>
 </div>
-<div class="p-6 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
-<div class="flex flex-wrap gap-3">
-<button onclick="copyLink('original', '通用订阅')" class="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
-<span class="material-symbols-outlined text-[18px]">language</span>
-通用订阅
+<div class="p-4 md:p-6 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
+<div class="flex flex-wrap gap-2 md:gap-3">
+<button onclick="copyLink('original', '通用订阅')" class="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-xs md:text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
+<span class="material-symbols-outlined text-[16px] md:text-[18px]">language</span>
+<span class="whitespace-nowrap">通用订阅</span>
 </button>
-<button onclick="copyLink('clash', 'Clash')" class="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
-<span class="material-symbols-outlined text-[18px]">bolt</span>
-Clash
+<button onclick="copyLink('clash', 'Clash')" class="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-xs md:text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
+<span class="material-symbols-outlined text-[16px] md:text-[18px]">bolt</span>
+<span class="whitespace-nowrap">Clash</span>
 </button>
-<button onclick="copyLink('sing-box', 'SingBox')" class="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
-<span class="material-symbols-outlined text-[18px]">inventory_2</span>
-SingBox
+<button onclick="copyLink('sing-box', 'SingBox')" class="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-xs md:text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
+<span class="material-symbols-outlined text-[16px] md:text-[18px]">inventory_2</span>
+<span class="whitespace-nowrap">SingBox</span>
 </button>
-<button onclick="copyLink('surge', 'Surge')" class="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
-<span class="material-symbols-outlined text-[18px]">waves</span>
-Surge
+<button onclick="copyLink('surge', 'Surge')" class="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-xs md:text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
+<span class="material-symbols-outlined text-[16px] md:text-[18px]">waves</span>
+<span class="whitespace-nowrap">Surge</span>
 </button>
-<button onclick="copyLink('shadowrocket', 'Shadowrocket')" class="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
-<span class="material-symbols-outlined text-[18px]">rocket_launch</span>
-Shadowrocket
+<button onclick="copyLink('shadowrocket', 'Shadowrocket')" class="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-xs md:text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
+<span class="material-symbols-outlined text-[16px] md:text-[18px]">rocket_launch</span>
+<span class="whitespace-nowrap">Shadowrocket</span>
 </button>
-<button onclick="copyLink('quantumult', 'Quantumult X')" class="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
-<span class="material-symbols-outlined text-[18px]">psychology</span>
-Quantumult X
+<button onclick="copyLink('quantumult', 'Quantumult X')" class="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 border border-slate-200 dark:border-zinc-800 rounded-md text-xs md:text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
+<span class="material-symbols-outlined text-[16px] md:text-[18px]">psychology</span>
+<span class="whitespace-nowrap">Quantumult X</span>
 </button>
 </div>
 </div>
 </section>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-<div class="p-6 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 flex flex-col justify-between">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+<div class="p-4 md:p-6 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 flex flex-col justify-between">
 <div>
 <div class="flex items-center gap-2 mb-2">
-<span class="material-symbols-outlined text-[20px]">calendar_today</span>
-<h3 class="font-semibold">每日签到</h3>
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">calendar_today</span>
+<h3 class="text-sm md:text-base font-semibold">每日签到</h3>
 </div>
-<p class="text-sm text-slate-500 dark:text-zinc-500 mb-6">每日签到可获得1天使用时长奖励，系统将在每天 0:00 重置。</p>
+<p class="text-xs md:text-sm text-slate-500 dark:text-zinc-500 mb-4 md:mb-6">每日签到可获得1天使用时长奖励，系统将在每天 0:00 重置。</p>
 </div>
-<button onclick="handleCheckin()" ${hasCheckedIn ? 'disabled' : ''} class="w-full bg-primary text-white py-2 rounded-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
-<span class="material-symbols-outlined text-[20px]">how_to_reg</span>
+<button onclick="handleCheckin()" ${hasCheckedIn ? 'disabled' : ''} class="w-full bg-primary text-white py-2 md:py-2.5 rounded-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 font-medium text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed">
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">how_to_reg</span>
 ${hasCheckedIn ? '今日已签到' : '立即签到'}
 </button>
 </div>
 
-<div class="p-6 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 flex flex-col justify-between">
+<div class="p-4 md:p-6 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 flex flex-col justify-between">
 <div>
 <div class="flex items-center gap-2 mb-2">
-<span class="material-symbols-outlined text-[20px]">sync</span>
-<h3 class="font-semibold">重置订阅地址</h3>
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">sync</span>
+<h3 class="text-sm md:text-base font-semibold">重置订阅地址</h3>
 </div>
-<p class="text-sm text-slate-500 dark:text-zinc-500 mb-6">如果您的链接泄露或无法连接，请重置。重置后旧链接将立即失效。</p>
+<p class="text-xs md:text-sm text-slate-500 dark:text-zinc-500 mb-4 md:mb-6">如果您的链接泄露或无法连接，请重置。重置后旧链接将立即失效。</p>
 </div>
-<button onclick="handleResetUUID()" class="w-full border border-slate-200 dark:border-zinc-800 py-2 rounded-md hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center justify-center gap-2 font-medium">
-<span class="material-symbols-outlined text-[20px]">refresh</span>
+<button onclick="handleResetUUID()" class="w-full border border-slate-200 dark:border-zinc-800 py-2 md:py-2.5 rounded-md hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center justify-center gap-2 font-medium text-sm md:text-base">
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">refresh</span>
 重置订阅地址
 </button>
 </div>
@@ -461,26 +725,26 @@ ${hasCheckedIn ? '今日已签到' : '立即签到'}
 
 <section class="max-w-2xl">
 <div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-[20px]">lock</span>
-<h2 class="text-lg font-semibold tracking-tight">修改密码</h2>
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">lock</span>
+<h2 class="text-base md:text-lg font-semibold tracking-tight">修改密码</h2>
 </div>
-<div class="p-6 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 space-y-6">
-<div class="space-y-4">
+<div class="p-4 md:p-6 border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 space-y-4 md:space-y-6">
+<div class="space-y-3 md:space-y-4">
 <div class="space-y-2">
-<label class="text-sm font-medium text-slate-700 dark:text-zinc-300">旧密码</label>
-<input id="oldPassword" type="password" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入旧密码"/>
-</div>
-<div class="space-y-2">
-<label class="text-sm font-medium text-slate-700 dark:text-zinc-300">新密码</label>
-<input id="newPassword" type="password" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入新密码"/>
+<label class="text-xs md:text-sm font-medium text-slate-700 dark:text-zinc-300">旧密码</label>
+<input id="oldPassword" type="password" class="w-full px-3 py-2 text-sm md:text-base bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入旧密码"/>
 </div>
 <div class="space-y-2">
-<label class="text-sm font-medium text-slate-700 dark:text-zinc-300">确认新密码</label>
-<input id="confirmPassword" type="password" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请再次输入新密码"/>
+<label class="text-xs md:text-sm font-medium text-slate-700 dark:text-zinc-300">新密码</label>
+<input id="newPassword" type="password" class="w-full px-3 py-2 text-sm md:text-base bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入新密码"/>
+</div>
+<div class="space-y-2">
+<label class="text-xs md:text-sm font-medium text-slate-700 dark:text-zinc-300">确认新密码</label>
+<input id="confirmPassword" type="password" class="w-full px-3 py-2 text-sm md:text-base bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请再次输入新密码"/>
 </div>
 </div>
-<button onclick="handleChangePassword()" class="bg-primary text-white px-6 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 font-medium">
-<span class="material-symbols-outlined text-[20px]">save</span>
+<button onclick="handleChangePassword()" class="bg-primary text-white px-4 md:px-6 py-2 md:py-2.5 rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 font-medium text-sm md:text-base">
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">save</span>
 保存修改
 </button>
 </div>
@@ -491,10 +755,10 @@ ${hasCheckedIn ? '今日已签到' : '立即签到'}
 <div id="page-orders" class="hidden">
 <section>
 <div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-[20px]">shopping_bag</span>
-<h2 class="text-lg font-semibold tracking-tight">我的订单</h2>
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">shopping_bag</span>
+<h2 class="text-base md:text-lg font-semibold tracking-tight">我的订单</h2>
 </div>
-<div id="ordersList" class="space-y-4">
+<div id="ordersList" class="space-y-3 md:space-y-4">
 <div class="text-center text-slate-500 py-8">加载中...</div>
 </div>
 </section>
@@ -502,15 +766,26 @@ ${hasCheckedIn ? '今日已签到' : '立即签到'}
 
 <!-- 套餐购买页面 -->
 <div id="page-plans" class="hidden">
-<section>
-<div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-[20px]">package_2</span>
-<h2 class="text-lg font-semibold tracking-tight">套餐购买</h2>
+<div class="mb-8">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-slate-900 dark:text-white">inventory_2</span>
+<h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">套餐购买</h1>
 </div>
-<div id="plansList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-<div class="text-center text-slate-500 py-8">加载中...</div>
+<p class="text-sm md:text-base text-slate-500 dark:text-slate-400">选择适合您的加速方案，享受高速网络体验</p>
 </div>
-</section>
+<div id="plansList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+<div class="text-center text-slate-500 py-8 col-span-full">加载中...</div>
+</div>
+<div class="mt-12 md:mt-16 p-6 md:p-8 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800 text-center">
+<p class="text-slate-500 dark:text-slate-400 text-xs md:text-sm">
+支付遇到问题？请联系在线客服或查看使用文档获取帮助
+</p>
+<div class="mt-4 flex justify-center gap-4 text-xs md:text-sm">
+<a href="#" class="font-semibold hover:underline text-slate-900 dark:text-white">联系支持</a>
+<span class="text-slate-300 dark:text-zinc-700">|</span>
+<a href="#" class="font-semibold hover:underline text-slate-900 dark:text-white">使用文档</a>
+</div>
+</div>
 </div>
 
 <footer class="pt-12 pb-8 text-center border-t border-slate-100 dark:border-zinc-900">
@@ -518,25 +793,23 @@ ${hasCheckedIn ? '今日已签到' : '立即签到'}
 </footer>
 </div>
 </main>
-</div>
 
-<div class="fixed bottom-6 right-6 z-50">
-<button onclick="document.documentElement.classList.toggle('dark')" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
-<span class="material-symbols-outlined dark:hidden">dark_mode</span>
-<span class="material-symbols-outlined hidden dark:block">light_mode</span>
+<div class="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-50">
+<button onclick="document.documentElement.classList.toggle('dark')" class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 shadow-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
+<span class="material-symbols-outlined text-[20px] dark:hidden">dark_mode</span>
+<span class="material-symbols-outlined text-[20px] hidden dark:block">light_mode</span>
 </button>
 </div>
 
-<div id="toast" class="fixed top-4 right-4 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg px-4 py-3 hidden z-50 max-w-sm">
-<p class="text-sm"></p>
-</div>
+<!-- Shadcn Toast Container -->
+<div id="toast-container" class="fixed bottom-20 right-4 md:bottom-6 md:right-20 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
-<div id="modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
-<div class="bg-white dark:bg-zinc-900 rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
+<div id="modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+<div class="bg-white dark:bg-zinc-950 border border-slate-900 dark:border-white rounded-xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
 <div class="flex items-center justify-between p-6 border-b border-slate-200 dark:border-zinc-800">
-<h3 class="text-lg font-semibold" id="modalTitle"></h3>
-<button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-<span class="material-symbols-outlined">close</span>
+<h3 class="text-lg font-bold text-slate-900 dark:text-white" id="modalTitle"></h3>
+<button onclick="closeModal()" class="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[20px]">close</span>
 </button>
 </div>
 <div class="p-6 overflow-y-auto flex-1" id="modalContent"></div>
@@ -547,9 +820,27 @@ ${hasCheckedIn ? '今日已签到' : '立即签到'}
 let currentPage = 'account';
 const navItems = ['account', 'orders', 'plans'];
 
+// 侧边栏切换（移动端）
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  
+  sidebar.classList.toggle('mobile-open');
+  overlay.classList.toggle('active');
+}
+
 function switchPage(page) {
   currentPage = page;
   window.location.hash = page;
+  
+  // 移动端切换页面后自动关闭侧边栏
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (sidebar.classList.contains('mobile-open')) {
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('active');
+  }
+  
   navItems.forEach(p => {
     const pageEl = document.getElementById('page-' + p);
     const navEl = document.getElementById('nav-' + p);
@@ -575,11 +866,66 @@ function switchPage(page) {
   if(page === 'plans') loadPlans();
 }
 
-function showToast(message) {
-  const toast = document.getElementById('toast');
-  toast.querySelector('p').textContent = message;
-  toast.classList.remove('hidden');
-  setTimeout(() => toast.classList.add('hidden'), 3000);
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  
+  // 解析消息中的emoji图标
+  let icon = '';
+  let cleanMessage = message;
+  
+  if (message.startsWith('✅')) {
+    type = 'success';
+    cleanMessage = message.replace('✅', '').trim();
+  } else if (message.startsWith('❌')) {
+    type = 'error';
+    cleanMessage = message.replace('❌', '').trim();
+  } else if (message.startsWith('⏳')) {
+    type = 'loading';
+    cleanMessage = message.replace('⏳', '').trim();
+  } else if (message.startsWith('ℹ️')) {
+    type = 'info';
+    cleanMessage = message.replace('ℹ️', '').trim();
+  }
+  
+  // 根据类型选择图标
+  const icons = {
+    success: 'check_circle',
+    error: 'cancel',
+    warning: 'warning',
+    info: 'info',
+    loading: 'progress_activity'
+  };
+  
+  icon = icons[type] || 'info';
+  
+  // 创建toast元素
+  const toast = document.createElement('div');
+  toast.className = 'pointer-events-auto w-full max-w-sm bg-white dark:bg-zinc-950 border border-slate-900 dark:border-white rounded-lg shadow-sm backdrop-blur-sm transition-all duration-300 transform translate-x-0 opacity-100';
+  toast.style.animation = 'slideInRight 0.3s ease-out';
+  
+  const iconColor = type === 'success' ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400';
+  
+  toast.innerHTML = '<div class="flex items-start gap-3 p-4">' +
+    '<span class="material-symbols-outlined text-[20px] flex-shrink-0 ' + iconColor + '">' + icon + '</span>' +
+    '<div class="flex-1 min-w-0">' +
+    '<p class="text-sm font-semibold text-slate-900 dark:text-white leading-tight">' + cleanMessage + '</p>' +
+    '</div>' +
+    '<button onclick="this.closest(&quot;div&quot;).parentElement.remove()" class="flex-shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">' +
+    '<span class="material-symbols-outlined text-[18px]">close</span>' +
+    '</button>' +
+    '</div>';
+  
+  container.appendChild(toast);
+  
+  // 自动移除（loading类型不自动移除）
+  if (type !== 'loading') {
+    setTimeout(() => {
+      toast.style.animation = 'slideOutRight 0.3s ease-in';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+  
+  return toast;
 }
 
 function openModal(title, content) {
@@ -665,7 +1011,13 @@ async function handleCheckin() {
       showToast('✅ ' + data.message);
       setTimeout(() => location.reload(), 1500);
     } else {
-      showToast('❌ ' + (data.error || '签到失败'));
+      // 如果是已签到，显示信息提示；其他情况显示错误
+      const msg = data.error || '签到失败';
+      if(msg.includes('已签到')) {
+        showToast('ℹ️ ' + msg);
+      } else {
+        showToast('❌ ' + msg);
+      }
     }
   } catch(e) {
     showToast('❌ 网络错误');
@@ -674,11 +1026,16 @@ async function handleCheckin() {
 
 function showConfirm(title, message, onConfirm) {
   const content = \`
-    <div class="space-y-4">
-      <p class="text-slate-600 dark:text-zinc-400">\${message}</p>
+    <div class="space-y-6">
+      <div class="flex items-start gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-slate-100 dark:bg-zinc-900 flex items-center justify-center">
+          <span class="material-symbols-outlined text-slate-900 dark:text-white">help</span>
+        </div>
+        <p class="text-sm text-slate-600 dark:text-zinc-400 leading-relaxed pt-2">\${message}</p>
+      </div>
       <div class="flex gap-3 justify-end">
-        <button onclick="closeModal()" class="px-4 py-2 border border-slate-200 dark:border-zinc-800 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors text-sm font-medium">取消</button>
-        <button onclick="confirmAction()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-medium">确定</button>
+        <button onclick="closeModal()" class="px-4 py-2 border border-slate-900 dark:border-white rounded-md hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors text-sm font-semibold text-slate-900 dark:text-white">取消</button>
+        <button onclick="confirmAction()" class="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-black rounded-md hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors text-sm font-semibold">确定</button>
       </div>
     </div>
   \`;
@@ -855,14 +1212,36 @@ async function loadPlans() {
         return;
       }
       
-      container.innerHTML = plans.map(plan => \`
-<div class="p-6 border border-slate-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 flex flex-col">
-<h3 class="text-xl font-bold mb-2">\${plan.name}</h3>
-<p class="text-3xl font-bold text-primary mb-4">¥\${plan.price}<span class="text-sm font-normal text-slate-500">/\${plan.duration_days}天</span></p>
-<p class="text-sm text-slate-500 mb-6">\${plan.description || '无描述'}</p>
-<button onclick="handleBuyPlan(\${plan.id})" class="mt-auto w-full bg-primary text-white py-2 rounded-md hover:opacity-90 transition-opacity font-medium">立即购买</button>
+      container.innerHTML = plans.map(plan => {
+        const isFree = parseFloat(plan.price) === 0;
+        const buttonText = isFree ? '立即体验' : '立即购买';
+        const description = plan.description || '无限流量，不限设备数量，解锁主流 AI 服务';
+        // 支持换行符、逗号、顿号分割，并去除每项前面的 ✔ ✓ √ 等符号
+        const features = description.split(/[\\n,，、]/).map(f => f.replace(/^[✔✓√\\s]+/, '').trim()).filter(f => f).slice(0, 5); // 最多显示5个特性
+        
+        return \`
+<div class="border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-xl overflow-hidden transition-all duration-300 hover:border-slate-400 dark:hover:border-slate-600 hover:shadow-lg flex flex-col">
+  <div class="p-4 md:p-5 flex flex-col">
+    <h3 class="text-base md:text-lg font-bold mb-2 text-slate-900 dark:text-white">\${plan.name}</h3>
+    <div class="flex items-baseline gap-1 mb-3">
+      <span class="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">¥\${plan.price}</span>
+      <span class="text-slate-400 dark:text-slate-500 font-medium text-xs">/ \${plan.duration_days}天</span>
+    </div>
+    <ul class="space-y-1.5 mb-4">
+      \${features.map(feature => 
+      '<li class="flex items-start gap-1.5 text-xs text-slate-600 dark:text-slate-400">' +
+        '<span class="material-symbols-outlined text-[14px] text-slate-900 dark:text-white mt-0.5 flex-shrink-0">check</span>' +
+        '<span class="flex-1">' + feature.trim() + '</span>' +
+      '</li>'
+      ).join('')}
+    </ul>
+    <button onclick="handleBuyPlan(\${plan.id})" class="w-full bg-primary text-white py-2 rounded-md text-sm font-semibold hover:bg-slate-800 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black mt-auto">
+      \${buttonText}
+    </button>
+  </div>
 </div>
-      \`).join('');
+        \`;
+      }).join('');
     }
   } catch(e) {
     showToast('❌ 加载套餐失败');
@@ -978,17 +1357,17 @@ async function handlePay(orderId) {
         <div class="mt-6">
           <label class="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3 block">支付渠道</label>
           <div class="space-y-2" id="paymentMethodsList">
-            \${channels.map((channel, index) => \`
-              <div class="relative">
-                <input \${index === 0 ? 'checked' : ''} class="peer hidden" id="channel_\${channel.id}" name="payment_method" type="radio" value="\${channel.id}" data-code="\${channel.code}"/>
-                <label class="flex items-center justify-between px-4 py-3 border border-zinc-200 dark:border-zinc-800 rounded-lg cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all peer-checked:border-zinc-900 dark:peer-checked:border-zinc-100 peer-checked:ring-1 peer-checked:ring-zinc-900 dark:peer-checked:ring-zinc-100" for="channel_\${channel.id}">
-                  <div class="flex items-center gap-3">
-                    <div class="radio-dot w-2 h-2 rounded-full border border-zinc-300 dark:border-zinc-700 transition-all"></div>
-                    <span class="text-sm font-medium text-zinc-900 dark:text-zinc-50">\${channel.name}</span>
-                  </div>
-                </label>
-              </div>
-            \`).join('')}
+            \${channels.map((channel, index) => 
+              '<div class="relative">' +
+                '<input ' + (index === 0 ? 'checked' : '') + ' class="peer hidden" id="channel_' + channel.id + '" name="payment_method" type="radio" value="' + channel.id + '" data-code="' + channel.code + '"/>' +
+                '<label class="flex items-center justify-between px-4 py-3 border border-zinc-200 dark:border-zinc-800 rounded-lg cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all peer-checked:border-zinc-900 dark:peer-checked:border-zinc-100 peer-checked:ring-1 peer-checked:ring-zinc-900 dark:peer-checked:ring-zinc-100" for="channel_' + channel.id + '">' +
+                  '<div class="flex items-center gap-3">' +
+                    '<div class="radio-dot w-2 h-2 rounded-full border border-zinc-300 dark:border-zinc-700 transition-all"></div>' +
+                    '<span class="text-sm font-medium text-zinc-900 dark:text-zinc-50">' + channel.name + '</span>' +
+                  '</div>' +
+                '</label>' +
+              '</div>'
+            ).join('')}
           </div>
         </div>
       </div>
@@ -1089,13 +1468,13 @@ async function showAnnouncements() {
         return;
       }
       
-      const content = announcements.map(ann => \`
-<div class="mb-6 last:mb-0">
-<h4 class="font-semibold mb-2">\${ann.title}</h4>
-<p class="text-sm text-slate-600 dark:text-zinc-400 whitespace-pre-wrap">\${ann.content}</p>
-<p class="text-xs text-slate-400 mt-2">\${new Date(ann.created_at).toLocaleString()}</p>
-</div>
-      \`).join('<hr class="my-4 border-slate-200 dark:border-zinc-800"/>');
+      const content = announcements.map(ann => 
+'<div class="mb-6 last:mb-0">' +
+'<h4 class="font-semibold mb-2">' + ann.title + '</h4>' +
+'<p class="text-sm text-slate-600 dark:text-zinc-400 whitespace-pre-wrap">' + ann.content + '</p>' +
+'<p class="text-xs text-slate-400 mt-2">' + new Date(ann.created_at).toLocaleString() + '</p>' +
+'</div>'
+      ).join('<hr class="my-4 border-slate-200 dark:border-zinc-800"/>');
       
       openModal('系统公告', content);
     }

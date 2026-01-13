@@ -92,6 +92,7 @@ app.post('/api/admin/plans/create', adminRoutes.createPlan);
 app.post('/api/admin/plans/update', adminRoutes.updatePlan);
 app.post('/api/admin/plans/toggle', adminRoutes.togglePlan);
 app.post('/api/admin/plans/delete', adminRoutes.deletePlan);
+app.post('/api/admin/plans/reorder', adminRoutes.reorderPlans);
 
 // 管理员 - 订单管理
 app.get('/api/admin/orders', adminRoutes.getOrders);

@@ -309,11 +309,8 @@ function deleteUsers(req, res) {
             
             // 检查是否包含管理员账号
             const adminUser = db.getUserByUsername(ADMIN_USERNAME);
-            if (adminUser) {
-                const adminAccount = db.getUserAccountByUserId(adminUser.id);
-                if (adminAccount && uuidList.includes(adminAccount.uuid)) {
-                    return res.status(403).json({ error: '不能删除管理员账号' });
-                }
+            if (adminUser && uuidList.includes(adminUser.uuid)) {
+                return res.status(403).json({ error: '不能删除管理员账号' });
             }
             
             db.deleteUsers(uuidList);
@@ -323,7 +320,7 @@ function deleteUsers(req, res) {
         
     } catch (e) {
         console.error('删除用户错误:', e);
-        res.status(500).json({ error: '服务器错误' });
+        res.status(500).json({ error: '服务器错误: ' + e.message });
     }
 }
 
@@ -681,9 +678,42 @@ function deletePlan(req, res) {
     
     try {
         const { id } = req.body;
-        db.deletePlan(parseInt(id));
+        const planId = parseInt(id);
+        
+        // 只检查待支付订单，已完成的订单不影响删除
+        const pendingOrders = db.getPendingOrdersByPlanId(planId);
+        if (pendingOrders && pendingOrders.length > 0) {
+            return res.status(400).json({ 
+                error: `无法删除：该套餐有 ${pendingOrders.length} 个待支付订单，请先取消这些订单` 
+            });
+        }
+        
+        // 删除套餐（已完成/取消的订单会保留，显示为"已删除套餐"）
+        db.deletePlan(planId);
         res.json({ success: true });
     } catch (e) {
+        console.error('删除套餐错误:', e);
+        res.status(500).json({ error: '服务器错误: ' + e.message });
+    }
+}
+
+function reorderPlans(req, res) {
+    if (!validateAdminSession(req)) {
+        return res.status(401).json({ error: '未授权' });
+    }
+    
+    try {
+        const { orders } = req.body;
+        
+        if (!orders || !Array.isArray(orders)) {
+            return res.status(400).json({ error: '参数错误' });
+        }
+        
+        db.updatePlansSortOrder(orders);
+        res.json({ success: true });
+        
+    } catch (e) {
+        console.error('更新套餐排序错误:', e);
         res.status(500).json({ error: '服务器错误' });
     }
 }
@@ -1444,6 +1474,7 @@ module.exports = {
     updatePlan,
     togglePlan,
     deletePlan,
+    reorderPlans,
     getOrders,
     approveOrder,
     rejectOrder,

@@ -167,6 +167,28 @@ function renderAdminPanel() {
     input:checked + .slider-shadcn:before {
       transform: translateX(16px);
     }
+    /* 侧边栏移动端样式 */
+    #sidebar-overlay {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #sidebar-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    aside {
+      transform: translateX(0);
+      transition: transform 0.3s ease;
+    }
+    @media (max-width: 768px) {
+      aside {
+        transform: translateX(-100%);
+      }
+      aside.mobile-open {
+        transform: translateX(0);
+      }
+    }
   </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark text-slate-950 dark:text-slate-50 transition-colors duration-200">
@@ -256,9 +278,12 @@ function renderAdminPanel() {
     </div>
   </div>
   
+  <!-- 移动端遮罩层 -->
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 md:hidden" onclick="toggleSidebar()"></div>
+  
   <div class="flex min-h-screen">
     <!-- 侧边栏 -->
-    <aside class="w-64 border-r border-border-light dark:border-border-dark flex flex-col fixed inset-y-0 left-0 z-50 bg-background-light dark:bg-background-dark">
+    <aside id="sidebar" class="w-64 border-r border-border-light dark:border-border-dark flex flex-col fixed inset-y-0 left-0 z-50 bg-background-light dark:bg-background-dark">
       <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center gap-2">
         <div class="w-8 h-8 bg-primary rounded-md flex items-center justify-center text-white">
           <span class="material-symbols-outlined">terminal</span>
@@ -337,9 +362,14 @@ function renderAdminPanel() {
     </aside>
     
     <!-- 主内容区 -->
-    <main class="flex-1 ml-64 min-h-screen">
-      <header class="h-16 border-b border-border-light dark:border-border-dark flex items-center justify-between px-8 bg-background-light dark:bg-background-dark">
-        <h1 id="section-title" class="text-xl font-bold tracking-tight">仪表盘概览</h1>
+    <main class="flex-1 md:ml-64 min-h-screen">
+      <header class="h-16 border-b border-border-light dark:border-border-dark flex items-center justify-between px-4 md:px-8 bg-background-light dark:bg-background-dark">
+        <div class="flex items-center gap-3">
+          <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
+          <h1 id="section-title" class="text-lg md:text-xl font-bold tracking-tight">仪表盘概览</h1>
+        </div>
         <div class="flex items-center gap-4">
           <button class="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-muted-light dark:text-muted-dark" id="themeToggle">
             <span class="material-symbols-outlined dark:hidden">dark_mode</span>
@@ -890,6 +920,7 @@ function renderAdminPanel() {
               <table class="w-full text-left text-sm border-collapse">
                 <thead>
                   <tr class="border-b border-slate-200 dark:border-slate-800 text-slate-500 font-medium">
+                    <th class="px-3 py-4 font-semibold uppercase text-xs tracking-wider w-10"></th>
                     <th class="px-6 py-4 font-semibold uppercase text-xs tracking-wider">名称</th>
                     <th class="px-6 py-4 font-semibold uppercase text-xs tracking-wider">周期</th>
                     <th class="px-6 py-4 font-semibold uppercase text-xs tracking-wider">价格</th>
@@ -1117,6 +1148,14 @@ function renderAdminPanel() {
       const targetSection = document.getElementById('section-' + sectionName);
       if (targetSection) {
         targetSection.classList.add('active');
+      }
+      
+      // 移动端切换页面后自动关闭侧边栏
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      if (sidebar && sidebar.classList.contains('mobile-open')) {
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('active');
       }
       
       // 保存当前section
@@ -2211,6 +2250,8 @@ function renderAdminPanel() {
         const data = await response.json();
         if (data.success) {
           allPlans = data.plans || [];
+          // 按 sort_order 排序
+          allPlans.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
           renderPlansList();
         } else {
           showAlert('加载套餐失败: ' + (data.error || '未知错误'), 'error');
@@ -2219,6 +2260,87 @@ function renderAdminPanel() {
         console.error('加载套餐失败:', error);
         showAlert('加载套餐失败: ' + error.message, 'error');
       }
+    }
+    
+    let draggedPlanRow = null;
+    
+    function handlePlanDragStart(e) {
+      draggedPlanRow = e.target.closest('tr');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/html', draggedPlanRow.innerHTML);
+      draggedPlanRow.classList.add('opacity-50');
+    }
+    
+    function handlePlanDragOver(e) {
+      if (e.preventDefault) e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      
+      const targetRow = e.target.closest('tr');
+      if (targetRow && targetRow !== draggedPlanRow && targetRow.hasAttribute('draggable')) {
+        const tbody = targetRow.parentNode;
+        const allRows = [...tbody.querySelectorAll('tr[draggable="true"]')];
+        const draggedIndex = allRows.indexOf(draggedPlanRow);
+        const targetIndex = allRows.indexOf(targetRow);
+        
+        if (draggedIndex < targetIndex) {
+          tbody.insertBefore(draggedPlanRow, targetRow.nextSibling);
+        } else {
+          tbody.insertBefore(draggedPlanRow, targetRow);
+        }
+      }
+      return false;
+    }
+    
+    function handlePlanDrop(e) {
+      if (e.stopPropagation) e.stopPropagation();
+      return false;
+    }
+    
+    async function handlePlanDragEnd(e) {
+      if (!draggedPlanRow) return;
+      
+      draggedPlanRow.classList.remove('opacity-50');
+      
+      // 获取新的顺序
+      const tbody = e.target.closest('tbody');
+      if (!tbody) {
+        draggedPlanRow = null;
+        return;
+      }
+      
+      const rows = [...tbody.querySelectorAll('tr[data-plan-id]')];
+      const newOrder = rows.map((row, index) => ({
+        id: parseInt(row.getAttribute('data-plan-id')),
+        sort_order: index
+      }));
+      
+      // 保存新顺序到服务器
+      try {
+        const response = await fetch('/api/admin/plans/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orders: newOrder })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('排序已保存', 'success');
+          // 更新本地数据
+          newOrder.forEach(item => {
+            const plan = allPlans.find(p => p.id === item.id);
+            if (plan) plan.sort_order = item.sort_order;
+          });
+        } else {
+          showAlert('保存排序失败: ' + (data.error || '未知错误'), 'error');
+          await loadAllPlans(); // 重新加载
+        }
+      } catch (error) {
+        console.error('保存排序失败:', error);
+        showAlert('保存排序失败', 'error');
+        await loadAllPlans(); // 重新加载
+      }
+      
+      draggedPlanRow = null;
     }
     
     function renderPlansList() {
@@ -2240,7 +2362,10 @@ function renderAdminPanel() {
         const toggleIcon = plan.enabled ? 'toggle_on' : 'toggle_off';
         const rowOpacity = plan.enabled ? '' : ' opacity-60';
         
-        html += '<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors' + rowOpacity + '" data-plan-name="' + plan.name.toLowerCase() + '">' +
+        html += '<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors' + rowOpacity + ' cursor-move" draggable="true" data-plan-id="' + plan.id + '" data-plan-name="' + plan.name.toLowerCase() + '" ondragstart="handlePlanDragStart(event)" ondragover="handlePlanDragOver(event)" ondrop="handlePlanDrop(event)" ondragend="handlePlanDragEnd(event)">' +
+          '<td class="px-3 py-4 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing">' +
+            '<span class="material-symbols-outlined text-[18px]">drag_indicator</span>' +
+          '</td>' +
           '<td class="px-6 py-4 font-medium">' + plan.name + '</td>' +
           '<td class="px-6 py-4 text-slate-500">' + plan.duration_days + '天</td>' +
           '<td class="px-6 py-4">¥' + parseFloat(plan.price).toFixed(2) + '</td>' +
@@ -4503,6 +4628,15 @@ function renderAdminPanel() {
       } catch (error) {
         alert('❌ ' + error.message);
       }
+    }
+    
+    // 侧边栏切换（移动端）
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      
+      sidebar.classList.toggle('mobile-open');
+      overlay.classList.toggle('active');
     }
     
     // Toast 提示

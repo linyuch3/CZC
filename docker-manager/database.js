@@ -69,7 +69,8 @@ function initDatabase() {
             duration_days INTEGER NOT NULL,
             price REAL NOT NULL,
             enabled INTEGER NOT NULL DEFAULT 1,
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            sort_order INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS orders (
@@ -149,6 +150,22 @@ function initDatabase() {
             console.log('[数据库迁移] 添加 callback_url 字段到 payment_channels 表...');
             db.exec('ALTER TABLE payment_channels ADD COLUMN callback_url TEXT');
             console.log('[数据库迁移] ✅ callback_url 字段添加成功');
+        }
+    } catch (e) {
+        console.error('[数据库迁移] 错误:', e.message);
+    }
+    
+    // 迁移：为 subscription_plans 表添加 sort_order 字段
+    try {
+        const checkColumn = db.prepare("PRAGMA table_info(subscription_plans)").all();
+        const hasSortOrder = checkColumn.some(col => col.name === 'sort_order');
+        
+        if (!hasSortOrder) {
+            console.log('[数据库迁移] 添加 sort_order 字段到 subscription_plans 表...');
+            db.exec('ALTER TABLE subscription_plans ADD COLUMN sort_order INTEGER DEFAULT 0');
+            // 为现有套餐设置排序值（按ID升序）
+            db.exec('UPDATE subscription_plans SET sort_order = id WHERE sort_order = 0 OR sort_order IS NULL');
+            console.log('[数据库迁移] ✅ sort_order 字段添加成功');
         }
     } catch (e) {
         console.error('[数据库迁移] 错误:', e.message);
@@ -404,8 +421,8 @@ function saveSettings(settings) {
 // 获取所有套餐
 function getAllPlans(includeDisabled = false) {
     const sql = includeDisabled 
-        ? "SELECT * FROM subscription_plans ORDER BY created_at DESC"
-        : "SELECT * FROM subscription_plans WHERE enabled = 1 ORDER BY created_at DESC";
+        ? "SELECT * FROM subscription_plans ORDER BY sort_order ASC, id ASC"
+        : "SELECT * FROM subscription_plans WHERE enabled = 1 ORDER BY sort_order ASC, id ASC";
     const stmt = getDb().prepare(sql);
     return stmt.all();
 }
@@ -440,8 +457,29 @@ function togglePlan(id) {
 
 // 删除套餐
 function deletePlan(id) {
-    const stmt = getDb().prepare("DELETE FROM subscription_plans WHERE id = ?");
-    return stmt.run(id);
+    const db = getDb();
+    // 暂时禁用外键约束
+    db.prepare("PRAGMA foreign_keys = OFF").run();
+    try {
+        const stmt = db.prepare("DELETE FROM subscription_plans WHERE id = ?");
+        const result = stmt.run(id);
+        return result;
+    } finally {
+        // 恢复外键约束
+        db.prepare("PRAGMA foreign_keys = ON").run();
+    }
+}
+
+// 更新套餐排序
+function updatePlansSortOrder(orders) {
+    const db = getDb();
+    const stmt = db.prepare('UPDATE subscription_plans SET sort_order = ? WHERE id = ?');
+    const transaction = db.transaction((orders) => {
+        for (const order of orders) {
+            stmt.run(order.sort_order, order.id);
+        }
+    });
+    transaction(orders);
 }
 
 // --- 订单相关操作 ---
@@ -449,9 +487,13 @@ function deletePlan(id) {
 // 获取订单列表
 function getOrders(status = 'all', limit = 100) {
     let sql = `
-        SELECT o.*, p.name as plan_name, p.duration_days, p.price, ua.username, ua.uuid 
+        SELECT o.*, 
+               COALESCE(p.name, '已删除套餐') as plan_name, 
+               COALESCE(p.duration_days, 0) as duration_days, 
+               COALESCE(p.price, o.amount) as price, 
+               ua.username, ua.uuid 
         FROM orders o 
-        JOIN subscription_plans p ON o.plan_id = p.id 
+        LEFT JOIN subscription_plans p ON o.plan_id = p.id 
         JOIN user_accounts ua ON o.user_id = ua.id
     `;
     if (status !== 'all') {
@@ -466,13 +508,39 @@ function getOrders(status = 'all', limit = 100) {
 // 获取用户订单
 function getUserOrders(userId) {
     const stmt = getDb().prepare(`
-        SELECT o.*, p.name as plan_name, p.duration_days 
+        SELECT o.*, 
+               COALESCE(p.name, '已删除套餐') as plan_name, 
+               COALESCE(p.duration_days, 0) as duration_days 
         FROM orders o 
-        JOIN subscription_plans p ON o.plan_id = p.id 
+        LEFT JOIN subscription_plans p ON o.plan_id = p.id 
         WHERE o.user_id = ? 
         ORDER BY o.created_at DESC
     `);
     return stmt.all(userId);
+}
+
+// 获取套餐关联的订单
+function getOrdersByPlanId(planId) {
+    const stmt = getDb().prepare(`
+        SELECT o.* FROM orders o WHERE o.plan_id = ?
+    `);
+    return stmt.all(planId);
+}
+
+// 获取套餐关联的待支付订单
+function getPendingOrdersByPlanId(planId) {
+    const stmt = getDb().prepare(`
+        SELECT o.* FROM orders o WHERE o.plan_id = ? AND o.status = 'pending'
+    `);
+    return stmt.all(planId);
+}
+
+// 解除订单与套餐的关联（用于删除套餐前保留订单历史）
+function unlinkOrdersFromPlan(planId) {
+    const stmt = getDb().prepare(`
+        UPDATE orders SET plan_id = NULL WHERE plan_id = ?
+    `);
+    return stmt.run(planId);
 }
 
 // 创建订单
@@ -943,12 +1011,16 @@ module.exports = {
     // 订单
     getOrders,
     getUserOrders,
+    getOrdersByPlanId,
+    getPendingOrdersByPlanId,
+    unlinkOrdersFromPlan,
     createOrder,
     getOrderById,
     updateOrderStatus,
     updateUserExpiry,
     updateOrderPaymentInfo,
     getUserByUserId,
+    updatePlansSortOrder,
     
     // 公告
     getAllAnnouncements,
