@@ -3,7 +3,6 @@
  */
 
 const db = require('../database');
-const { fetchBestIPsFromWeb } = require('../server');
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
@@ -929,8 +928,18 @@ function savePaymentChannel(req, res) {
         }
         
         db.createPaymentChannel(name, code, api_url, api_token, callback_url || null);
+        
+        // 同时更新系统配置中的 baseUrl，以便回调地址生效
+        if (callback_url) {
+            const settings = db.getSettings() || {};
+            settings.baseUrl = callback_url;
+            db.saveSettings(settings);
+            console.log('✅ 已同步更新系统 baseUrl:', callback_url);
+        }
+        
         res.json({ success: true });
     } catch (e) {
+        console.error('创建支付通道失败:', e);
         res.status(500).json({ error: '服务器错误' });
     }
 }
@@ -943,8 +952,18 @@ function updatePaymentChannel(req, res) {
     try {
         const { id, name, code, api_url, api_token, callback_url } = req.body;
         db.updatePaymentChannel(parseInt(id), name, code, api_url, api_token, callback_url || null);
+        
+        // 同时更新系统配置中的 baseUrl，以便回调地址生效
+        if (callback_url) {
+            const settings = db.getSettings() || {};
+            settings.baseUrl = callback_url;
+            db.saveSettings(settings);
+            console.log('✅ 已同步更新系统 baseUrl:', callback_url);
+        }
+        
         res.json({ success: true });
     } catch (e) {
+        console.error('更新支付通道失败:', e);
         res.status(500).json({ error: '服务器错误' });
     }
 }
@@ -1209,7 +1228,9 @@ function saveProxyIPs(req, res) {
 function getBestDomains(req, res) {
     try {
         const bestDomains = db.getBestDomains();
-        res.json({ success: true, bestDomains });
+        const settings = db.getSettings() || {};
+        const lastCronSyncTime = settings.lastCronSyncTime || Date.now();
+        res.json({ success: true, bestDomains, lastCronSyncTime });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -1228,6 +1249,57 @@ function saveBestDomains(req, res) {
         res.status(500).json({ error: e.message });
     }
 }
+
+// 获取优选IP
+async function fetchBestIPs(req, res) {
+    try {
+        const { type } = req.body; // 'v4' 或 'v6'
+        
+        if (!type || !['v4', 'v6'].includes(type)) {
+            return res.status(400).json({ error: '无效的IP类型' });
+        }
+        
+        console.log(`🔍 开始获取 ${type} 优选IP...`);
+        
+        // 调用原Worker中的fetchBestIPsFromWeb逻辑
+        const url = type === 'v4' 
+            ? 'https://wetest.vip/page/cloudflare/address_v4.html'
+            : 'https://wetest.vip/page/cloudflare/address_v6.html';
+        
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const html = await response.text();
+        
+        // 解析HTML，提取IP地址
+        const regex = type === 'v4'
+            ? /\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:#[^\s<]+)?\b/g
+            : /\[(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\](?::\d+)?(?:#[^\s<]+)?/g;
+        
+        const matches = html.match(regex) || [];
+        const domains = [...new Set(matches)].slice(0, 20); // 去重，取前20个
+        
+        console.log(`✅ 成功获取 ${domains.length} 个 ${type} 优选IP`);
+        
+        res.json({ 
+            success: true, 
+            domains,
+            type,
+            count: domains.length
+        });
+    } catch (e) {
+        console.error('❌ 获取优选IP失败:', e.message);
+        res.status(500).json({ error: '获取失败: ' + e.message });
+    }
+}
+
 
 // ==================== 修改密码 ====================
 async function changeAdminPassword(req, res) {
@@ -1396,6 +1468,7 @@ module.exports = {
     saveProxyIPs,
     getBestDomains,
     saveBestDomains,
+    fetchBestIPs,
     changeAdminPassword,
     exportAllData,
     importAllData,

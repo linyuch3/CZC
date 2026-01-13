@@ -780,7 +780,7 @@ function renderAdminPanel() {
                     </thead>
                     <tbody id="best-domains-list" class="divide-y divide-slate-100 dark:divide-zinc-800">
                       <tr>
-                        <td colspan="4" class="px-4 py-8 text-center text-slate-400 dark:text-zinc-600">
+                        <td colspan="5" class="px-4 py-8 text-center text-slate-400 dark:text-zinc-600">
                           <span class="material-symbols-outlined text-4xl mb-2 block">cloud_off</span>
                           <p class="text-sm">暂无优选域名</p>
                         </td>
@@ -928,6 +928,8 @@ function renderAdminPanel() {
               </select>
             </div>
             <div class="flex items-center gap-2">
+              <button onclick="batchApproveOrders()" class="px-4 py-2 text-sm font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 rounded-md transition-colors">批量通过</button>
+              <button onclick="batchRejectOrders()" class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 rounded-md transition-colors">批量拒绝</button>
               <button onclick="exportOrders()" class="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:opacity-90 transition-opacity">
                 <span class="material-symbols-outlined text-sm">download</span>
                 导出数据
@@ -958,12 +960,8 @@ function renderAdminPanel() {
                 </tr>
               </tbody>
             </table>
-            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800">
               <span id="orders-count" class="text-sm text-slate-500">共 0 条订单</span>
-              <div class="flex items-center gap-2">
-                <button onclick="batchApproveOrders()" class="px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded transition-colors">批量通过</button>
-                <button onclick="batchRejectOrders()" class="px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors">批量拒绝</button>
-              </div>
             </div>
           </div>
         </div>
@@ -2002,6 +2000,12 @@ function renderAdminPanel() {
         subUrlConfig = window.location.origin;
       }
       
+      // 如果有多个用逗号分隔的URL，随机选择一个
+      if (subUrlConfig.includes(',')) {
+        const urls = subUrlConfig.split(',').map(u => u.trim()).filter(u => u);
+        subUrlConfig = urls[Math.floor(Math.random() * urls.length)];
+      }
+      
       // 确保 URL 有 https:// 前缀
       let normalizedSubUrl = subUrlConfig.trim();
       if (!normalizedSubUrl.startsWith('http://') && !normalizedSubUrl.startsWith('https://')) {
@@ -2746,7 +2750,7 @@ function renderAdminPanel() {
       
       const statusConfig = getOrderStatusConfig(order.status);
       const createdTime = order.created_at ? new Date(order.created_at).toLocaleString('zh-CN') : '-';
-      const processedTime = order.processed_at ? new Date(order.processed_at).toLocaleString('zh-CN') : '-';
+      const paidTime = order.paid_at ? new Date(order.paid_at).toLocaleString('zh-CN') : '-';
       
       const bodyHtml = '<div class="space-y-4">' +
         '<div class="grid grid-cols-2 gap-4">' +
@@ -2764,7 +2768,7 @@ function renderAdminPanel() {
         '</div>' +
         '<div class="space-y-2">' +
           '<label class="text-xs font-medium text-slate-500">用户UUID</label>' +
-          '<div class="text-sm font-mono">' + order.uuid + '</div>' +
+          '<div class="text-sm font-mono">' + (order.uuid || '-') + '</div>' +
         '</div>' +
         '<div class="space-y-2">' +
           '<label class="text-xs font-medium text-slate-500">套餐</label>' +
@@ -2781,7 +2785,7 @@ function renderAdminPanel() {
           '</div>' +
           '<div class="space-y-2">' +
             '<label class="text-xs font-medium text-slate-500">处理时间</label>' +
-            '<div class="text-sm text-slate-600 dark:text-slate-400">' + processedTime + '</div>' +
+            '<div class="text-sm text-slate-600 dark:text-slate-400">' + paidTime + '</div>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -3706,6 +3710,13 @@ function renderAdminPanel() {
         
         const data = await response.json();
         let domains = data.bestDomains || [];
+        const lastCronSyncTime = data.lastCronSyncTime || Date.now();
+        
+        // 计算距离下次执行的剩余秒数
+        const elapsed = Math.floor((Date.now() - lastCronSyncTime) / 1000);
+        const interval = 15 * 60; // 15分钟
+        nextSyncSeconds = interval - (elapsed % interval);
+        if (nextSyncSeconds <= 0) nextSyncSeconds = interval;
         
         // 排序：IPv4在前，IPv6在后
         domains.sort((a, b) => {
@@ -3731,16 +3742,38 @@ function renderAdminPanel() {
       document.getElementById('best-domains-count').textContent = '共 ' + currentBestDomains.length + ' 个条目';
       
       if (currentBestDomains.length === 0) {
-        listContainer.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400 dark:text-zinc-600"><span class="material-symbols-outlined text-4xl mb-2 block">cloud_off</span><p class="text-sm">暂无优选域名</p></td></tr>';
+        listContainer.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400 dark:text-zinc-600"><span class="material-symbols-outlined text-4xl mb-2 block">cloud_off</span><p class="text-sm">暂无优选域名</p></td></tr>';
         return;
       }
       
       let html = '';
       currentBestDomains.forEach((domain, index) => {
+        // 检测IP类型和标签
+        const isIPv6 = domain.includes('[');
+        const typeClass = isIPv6 ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+        const typeText = isIPv6 ? 'IPv6' : 'IPv4';
+        
+        // 提取标签（#后的内容）
+        let label = '';
+        if (domain.includes('#')) {
+          label = domain.split('#')[1] || '';
+        }
+        
         html += '<tr class="group hover:bg-slate-50/50 dark:hover:bg-zinc-800/20 transition-colors" draggable="true" data-index="' + index + '" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragend="handleDragEnd(event)">' +
           '<td class="px-4 py-3"><span class="material-symbols-outlined text-slate-300 dark:text-zinc-600 text-[18px] cursor-move">drag_indicator</span></td>' +
-          '<td class="px-4 py-3 font-mono text-slate-700 dark:text-zinc-300">' + domain + '</td>' +
-          '<td class="px-4 py-3"><span class="inline-block w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-600"></span></td>' +
+          '<td class="px-4 py-3">' +
+            '<div class="flex items-center gap-2">' +
+              '<span class="px-2 py-0.5 text-[11px] font-medium rounded ' + typeClass + '">' + typeText + '</span>' +
+              '<span class="font-mono text-slate-700 dark:text-zinc-300">' + domain + '</span>' +
+            '</div>' +
+            (label ? '<div class="mt-1 text-xs text-slate-500 dark:text-zinc-500">📍 ' + label + '</div>' : '') +
+          '</td>' +
+          '<td class="px-4 py-3">' +
+            '<div class="flex items-center gap-1.5">' +
+              '<span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>' +
+              '<span class="text-xs text-slate-500 dark:text-zinc-500">在线</span>' +
+            '</div>' +
+          '</td>' +
           '<td class="px-4 py-3 text-right">' +
             '<button onclick="deleteBestDomain(' + index + ')" class="text-slate-400 hover:text-red-500 transition-colors">' +
               '<span class="material-symbols-outlined text-[18px]">close</span>' +
@@ -3826,47 +3859,66 @@ function renderAdminPanel() {
     }
     
     async function fetchIPv4BestDomains() {
-      const confirmed = await showConfirm('确定要从远程获取 IPv4 优选域名吗？\\n\\n⚠️ 这将替换当前列表！', '获取IPv4优选');
+      const confirmed = await showConfirm('确定要从远程获取 IPv4 优选域名吗？\\n\\n⚠️ 这将追加到当前列表！', '获取IPv4优选');
       if (!confirmed) return;
       
       try {
         showAlert('正在获取 IPv4 优选域名，请稍候...', 'info');
         
-        // 这里可以对接后端的获取优选IP接口
-        // 暂时模拟数据
-        const mockDomains = [
-          'cf.twitter.now.cc',
-          'telecom.twitter.now.cc', 
-          'unicom.twitter.now.cc',
-          '104.19.238.63:443#移动 LHR',
-          '104.18.34.121:443#移动 LHR'
-        ];
+        const response = await fetch('/api/admin/fetch-best-ips', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'v4' })
+        });
         
-        currentBestDomains = mockDomains;
-        renderBestDomainsList();
-        showAlert('已获取 ' + mockDomains.length + ' 个 IPv4 优选域名', 'success');
+        const result = await response.json();
+        
+        if (result.success) {
+          // 追加而不是替换，避免删除手动添加的域名
+          const newDomains = result.domains || [];
+          newDomains.forEach(domain => {
+            if (!currentBestDomains.includes(domain)) {
+              currentBestDomains.push(domain);
+            }
+          });
+          renderBestDomainsList();
+          showAlert('已获取 ' + newDomains.length + ' 个 IPv4 优选域名', 'success');
+        } else {
+          showAlert('获取失败: ' + (result.error || '未知错误'), 'error');
+        }
       } catch (error) {
         showAlert('获取失败: ' + error.message, 'error');
       }
     }
     
     async function fetchIPv6BestDomains() {
-      const confirmed = await showConfirm('确定要从远程获取 IPv6 优选域名吗？\\n\\n⚠️ 这将替换当前列表！', '获取IPv6优选');
+      const confirmed = await showConfirm('确定要从远程获取 IPv6 优选域名吗？\\n\\n⚠️ 这将追加到当前列表！', '获取IPv6优选');
       if (!confirmed) return;
       
       try {
         showAlert('正在获取 IPv6 优选域名，请稍候...', 'info');
         
-        // 这里可以对接后端的获取优选IP接口
-        // 暂时模拟数据
-        const mockDomains = [
-          '[2606:4700:7::a29f:8601]:443#美国',
-          '[2606:4700:7::a29f:8602]:443#欧洲'
-        ];
+        const response = await fetch('/api/admin/fetch-best-ips', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'v6' })
+        });
         
-        currentBestDomains = mockDomains;
-        renderBestDomainsList();
-        showAlert('已获取 ' + mockDomains.length + ' 个 IPv6 优选域名', 'success');
+        const result = await response.json();
+        
+        if (result.success) {
+          // 追加而不是替换，避免删除手动添加的域名
+          const newDomains = result.domains || [];
+          newDomains.forEach(domain => {
+            if (!currentBestDomains.includes(domain)) {
+              currentBestDomains.push(domain);
+            }
+          });
+          renderBestDomainsList();
+          showAlert('已获取 ' + newDomains.length + ' 个 IPv6 优选域名', 'success');
+        } else {
+          showAlert('获取失败: ' + (result.error || '未知错误'), 'error');
+        }
       } catch (error) {
         showAlert('获取失败: ' + error.message, 'error');
       }

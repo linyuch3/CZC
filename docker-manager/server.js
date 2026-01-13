@@ -127,6 +127,7 @@ app.get('/api/admin/proxy-ips', adminRoutes.getProxyIPs);
 app.post('/api/admin/proxy-ips', adminRoutes.saveProxyIPs);
 app.get('/api/admin/best-domains', adminRoutes.getBestDomains);
 app.post('/api/admin/best-domains', adminRoutes.saveBestDomains);
+app.post('/api/admin/fetch-best-ips', adminRoutes.fetchBestIPs);
 
 // 高级管理功能
 app.post('/api/admin/change-password', adminRoutes.changeAdminPassword);
@@ -208,6 +209,11 @@ async function getUserInfo(req) {
 // 定时任务：每15分钟自动更新优选IP和清理非活跃用户
 cron.schedule('*/15 * * * *', async () => {
     console.log('[定时任务] 开始执行...');
+    
+    // 保存执行时间
+    const settings = db.getSettings() || {};
+    settings.lastCronSyncTime = Date.now();
+    db.saveSettings(settings);
     
     try {
         // 自动更新优选IP
@@ -380,5 +386,3 @@ app.listen(PORT, '0.0.0.0', () => {
 ✅ 节点API: http://localhost:${PORT}/api/users
     `);
 });
-
-module.exports = { fetchBestIPsFromWeb };

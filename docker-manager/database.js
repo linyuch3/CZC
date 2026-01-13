@@ -449,7 +449,7 @@ function deletePlan(id) {
 // 获取订单列表
 function getOrders(status = 'all', limit = 100) {
     let sql = `
-        SELECT o.*, p.name as plan_name, p.duration_days, ua.username 
+        SELECT o.*, p.name as plan_name, p.duration_days, p.price, ua.username, ua.uuid 
         FROM orders o 
         JOIN subscription_plans p ON o.plan_id = p.id 
         JOIN user_accounts ua ON o.user_id = ua.id
@@ -510,6 +510,17 @@ function updateOrderStatus(id, status, paidAt = null) {
 function updateUserExpiry(uuid, newExpiry) {
     const stmt = getDb().prepare("UPDATE users SET expiry = ? WHERE uuid = ?");
     return stmt.run(newExpiry, uuid);
+}
+
+// 更新订单支付信息
+function updateOrderPaymentInfo(orderId, paymentOrderId, paymentTradeId) {
+    const stmt = getDb().prepare("UPDATE orders SET payment_order_id = ?, payment_trade_id = ? WHERE id = ?");
+    return stmt.run(paymentOrderId, paymentTradeId, orderId);
+}
+
+// 根据用户ID获取用户账号 (别名方法)
+function getUserByUserId(userId) {
+    return getUserById(userId);
 }
 
 // --- 公告相关操作 ---
@@ -936,6 +947,8 @@ module.exports = {
     getOrderById,
     updateOrderStatus,
     updateUserExpiry,
+    updateOrderPaymentInfo,
+    getUserByUserId,
     
     // 公告
     getAllAnnouncements,
