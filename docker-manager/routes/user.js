@@ -383,10 +383,9 @@ async function payOrder(req, res) {
         const baseUrl = settings.baseUrl || `${req.protocol}://${req.get('host')}`;
         const notifyUrl = `${baseUrl}/api/payment/notify`;
         const redirectUrl = `${baseUrl}/`;
-        const paymentOrderId = `ORDER_${orderId}`;
         
         const payParams = {
-            order_id: paymentOrderId,
+            order_id: order.order_no,
             amount: order.amount,
             notify_url: notifyUrl,
             redirect_url: redirectUrl,

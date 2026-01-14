@@ -124,21 +124,13 @@ async function paymentNotify(req, res) {
             return res.status(200).send('ok');
         }
 
-        // 解析 order_id (格式: ORDER_订单ID)
-        const orderIdMatch = order_id.match(/ORDER_(\d+)/);
-        if (!orderIdMatch) {
-            console.error('❌ 订单号格式错误:', order_id);
-            return res.status(200).send('ok');
-        }
+        console.log('✓ 订单号:', order_id);
         
-        const orderId = parseInt(orderIdMatch[1]);
-        console.log('✓ 解析订单ID:', orderId);
-        
-        // 获取订单信息
-        const order = db.getOrderById(orderId);
+        // 直接使用order_id查询订单（不再解析ORDER_前缀）
+        const order = db.getOrderByOrderNo(order_id);
         
         if (!order) {
-            console.error('❌ 订单不存在:', orderId);
+            console.error('❌ 订单不存在:', order_id);
             return res.status(200).send('ok');
         }
         

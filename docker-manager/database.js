@@ -77,6 +77,7 @@ function initDatabase() {
 
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_no TEXT UNIQUE,
             user_id INTEGER NOT NULL,
             plan_id INTEGER NOT NULL,
             amount REAL NOT NULL,
@@ -185,6 +186,29 @@ function initDatabase() {
             console.log('[数据库迁移] 添加 callback_url 字段到 payment_channels 表...');
             db.exec('ALTER TABLE payment_channels ADD COLUMN callback_url TEXT');
             console.log('[数据库迁移] ✅ callback_url 字段添加成功');
+        }
+        
+        // 检查 orders 表是否有 order_no 字段
+        const ordersInfo = db.prepare("PRAGMA table_info(orders)").all();
+        const hasOrderNo = ordersInfo.some(col => col.name === 'order_no');
+        
+        if (!hasOrderNo) {
+            console.log('[数据库迁移] 添加 order_no 字段到 orders 表...');
+            db.exec('ALTER TABLE orders ADD COLUMN order_no TEXT');
+            
+            // 为现有订单生成唯一订单号
+            console.log('[数据库迁移] 为现有订单生成唯一订单号...');
+            const existingOrders = db.prepare("SELECT id FROM orders WHERE order_no IS NULL").all();
+            const updateStmt = db.prepare("UPDATE orders SET order_no = ? WHERE id = ?");
+            
+            for (const order of existingOrders) {
+                const orderNo = generateOrderNo();
+                updateStmt.run(orderNo, order.id);
+            }
+            
+            // 创建唯一索引
+            db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_no ON orders(order_no)');
+            console.log(`[数据库迁移] ✅ order_no 字段添加成功，已为 ${existingOrders.length} 个订单生成订单号`);
         }
     } catch (e) {
         console.error('[数据库迁移] 错误:', e.message);
@@ -620,15 +644,24 @@ function unlinkOrdersFromPlan(planId) {
     return stmt.run(planId);
 }
 
-// 创建订单
-function createOrder(userId, planId, amount) {
-    const stmt = getDb().prepare(
-        "INSERT INTO orders (user_id, plan_id, amount, status, created_at) VALUES (?, ?, ?, 'pending', ?)"
-    );
-    return stmt.run(userId, planId, amount, Date.now());
+// 生成唯一订单号
+function generateOrderNo() {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 10).toUpperCase();
+    return `ORD${timestamp}${random}`;
 }
 
-// 获取订单详情
+// 创建订单
+function createOrder(userId, planId, amount) {
+    const orderNo = generateOrderNo();
+    const stmt = getDb().prepare(
+        "INSERT INTO orders (order_no, user_id, plan_id, amount, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)"
+    );
+    const result = stmt.run(orderNo, userId, planId, amount, Date.now());
+    return { ...result, orderNo };
+}
+
+// 获取订单详情（通过ID）
 function getOrderById(id) {
     const stmt = getDb().prepare(`
         SELECT o.*, p.name as plan_name, p.duration_days, ua.uuid 
@@ -638,6 +671,18 @@ function getOrderById(id) {
         WHERE o.id = ?
     `);
     return stmt.get(id);
+}
+
+// 获取订单详情（通过订单号）
+function getOrderByOrderNo(orderNo) {
+    const stmt = getDb().prepare(`
+        SELECT o.*, p.name as plan_name, p.duration_days, ua.uuid 
+        FROM orders o 
+        JOIN subscription_plans p ON o.plan_id = p.id 
+        JOIN user_accounts ua ON o.user_id = ua.id 
+        WHERE o.order_no = ?
+    `);
+    return stmt.get(orderNo);
 }
 
 // 更新订单状态
@@ -1094,8 +1139,10 @@ module.exports = {
     getOrdersByPlanId,
     getPendingOrdersByPlanId,
     unlinkOrdersFromPlan,
+    generateOrderNo,
     createOrder,
     getOrderById,
+    getOrderByOrderNo,
     updateOrderStatus,
     updateUserExpiry,
     updateOrderPaymentInfo,
