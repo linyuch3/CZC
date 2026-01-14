@@ -49,7 +49,7 @@ app.post('/api/user/register', userRoutes.register);
 app.post('/api/user/login', userRoutes.login);
 app.post('/api/user/logout', userRoutes.logout);
 app.post('/api/user/info', userRoutes.getInfo);
-app.post('/api/user/changePassword', userRoutes.changePassword);
+app.post('/api/user/change-password', userRoutes.changePassword);
 app.post('/api/user/checkin', userRoutes.checkin);
 app.post('/api/user/reset-uuid', userRoutes.resetUUID);
 app.post('/api/user/orders/cancel', userRoutes.cancelOrder);

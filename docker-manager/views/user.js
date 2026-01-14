@@ -60,9 +60,9 @@ function generateWeekCalendar(lastCheckin, checkinStreak) {
         html += '<div class="flex flex-col items-center gap-1">';
         
         if (isCheckedIn) {
-            // 已签到 - 绿色打勾
-            html += '<div class="w-full aspect-square rounded border-2 border-emerald-500 bg-emerald-500 flex items-center justify-center">';
-            html += '<span class="material-symbols-outlined text-white text-[14px] md:text-[16px]">check</span>';
+            // 已签到 - 黑色打勾
+            html += '<div class="w-full aspect-square rounded border-2 border-slate-900 dark:border-zinc-100 bg-slate-900 dark:bg-zinc-100 flex items-center justify-center">';
+            html += '<span class="material-symbols-outlined text-white dark:text-slate-900 text-[14px] md:text-[16px]">check</span>';
             html += '</div>';
         } else if (isToday) {
             // 今天未签到 - 高亮边框
@@ -1229,6 +1229,11 @@ function showToast(message, type = 'info') {
   
   container.appendChild(toast);
   
+  // 为loading类型的toast添加ID方便后续移除
+  if (type === 'loading') {
+    toast.setAttribute('data-loading', 'true');
+  }
+  
   // 自动移除（loading类型不自动移除）
   if (type !== 'loading') {
     setTimeout(() => {
@@ -1238,6 +1243,15 @@ function showToast(message, type = 'info') {
   }
   
   return toast;
+}
+
+// 移除所有loading toast
+function removeLoadingToasts() {
+  const loadingToasts = document.querySelectorAll('[data-loading="true"]');
+  loadingToasts.forEach(toast => {
+    toast.style.animation = 'slideOutRight 0.3s ease-in';
+    setTimeout(() => toast.remove(), 300);
+  });
 }
 
 function openModal(title, content) {
@@ -1576,6 +1590,9 @@ async function handleBuyPlan(planId) {
     });
     const data = await res.json();
     
+    // 移除loading提示
+    removeLoadingToasts();
+    
     if(res.ok && data.success) {
       if(data.needPayment) {
         // 付费套餐：直接打开支付方式选择
@@ -1596,6 +1613,7 @@ async function handleBuyPlan(planId) {
       showToast('❌ ' + (data.error || '购买失败'));
     }
   } catch(e) {
+    removeLoadingToasts();
     showToast('❌ 网络错误');
   }
 }
@@ -1730,6 +1748,9 @@ async function confirmPayment(orderId) {
     
     const data = await res.json();
     
+    // 移除loading提示
+    removeLoadingToasts();
+    
     if(res.ok && data.success) {
       if(data.data && data.data.payment_url) {
         window.open(data.data.payment_url, '_blank');
@@ -1742,6 +1763,7 @@ async function confirmPayment(orderId) {
       showToast('❌ ' + (data.error || '支付失败'));
     }
   } catch(e) {
+    removeLoadingToasts();
     console.error('支付错误:', e);
     showToast('❌ 网络错误');
   }
