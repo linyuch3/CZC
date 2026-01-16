@@ -2816,7 +2816,7 @@ function renderAdminPanel() {
         const subUrl = document.getElementById('sub-url').value.trim();
         const websiteUrl = document.getElementById('website-url').value.trim();
         
-        // 保存系统设置
+        // 保存系统设置（不包含 bestDomains 字段，让后端保留原有值）
         const settingsResponse = await fetch('/api/admin/saveSettings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2824,6 +2824,7 @@ function renderAdminPanel() {
             subUrl, 
             websiteUrl,
             proxyIP: currentProxyIPs.join('\\n')
+            // 不发送 bestDomains 字段，后端会自动保留原有值
           })
         });
         

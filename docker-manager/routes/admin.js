@@ -463,12 +463,25 @@ function saveSettings(req, res) {
         const { proxyIP, bestDomains, subUrl, websiteUrl } = req.body;
         
         let proxyIPs = proxyIP ? proxyIP.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0) : [];
-        let bestDomainsList = bestDomains ? bestDomains.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0) : [];
         
-        // 限制每条线路最多5个IP
-        bestDomainsList = validateAndLimitIPs(bestDomainsList);
-        
+        // 获取当前设置
         const currentSettings = db.getSettings() || {};
+        
+        // 处理 bestDomains：如果未提供或为空字符串，则保留原有值
+        let bestDomainsList;
+        if (bestDomains === undefined || bestDomains === null) {
+            // 未提供该字段，保留原有值
+            bestDomainsList = currentSettings.bestDomains || [];
+        } else if (typeof bestDomains === 'string' && bestDomains.trim() === '') {
+            // 提供了空字符串，保留原有值（不清空）
+            bestDomainsList = currentSettings.bestDomains || [];
+        } else {
+            // 提供了有效值，进行处理
+            bestDomainsList = bestDomains.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0);
+            // 限制每条线路最多5个IP
+            bestDomainsList = validateAndLimitIPs(bestDomainsList);
+        }
+        
         const settings = { 
             ...currentSettings, 
             proxyIPs, 
