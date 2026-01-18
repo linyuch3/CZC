@@ -462,32 +462,41 @@ function saveSettings(req, res) {
     try {
         const { proxyIP, bestDomains, subUrl, websiteUrl } = req.body;
         
-        let proxyIPs = proxyIP ? proxyIP.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0) : [];
-        
         // 获取当前设置
         const currentSettings = db.getSettings() || {};
         
-        // 处理 bestDomains：如果未提供或为空字符串，则保留原有值
-        let bestDomainsList;
-        if (bestDomains === undefined || bestDomains === null) {
-            // 未提供该字段，保留原有值
-            bestDomainsList = currentSettings.bestDomains || [];
-        } else if (typeof bestDomains === 'string' && bestDomains.trim() === '') {
-            // 提供了空字符串，保留原有值（不清空）
-            bestDomainsList = currentSettings.bestDomains || [];
-        } else {
-            // 提供了有效值，进行处理
-            bestDomainsList = bestDomains.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0);
-            // 限制每条线路最多5个IP
-            bestDomainsList = validateAndLimitIPs(bestDomainsList);
+        // 构建更新对象，只更新传递的字段
+        const updates = {};
+        
+        // 处理 proxyIPs：只在明确提供时才更新
+        if (proxyIP !== undefined) {
+            updates.proxyIPs = proxyIP ? proxyIP.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0) : [];
+        }
+        
+        // 处理 bestDomains：只在明确提供时才更新
+        if (bestDomains !== undefined && bestDomains !== null) {
+            if (typeof bestDomains === 'string' && bestDomains.trim() === '') {
+                // 提供了空字符串，保留原有值
+                updates.bestDomains = currentSettings.bestDomains || [];
+            } else {
+                // 提供了有效值，进行处理
+                const bestDomainsList = bestDomains.split(/[\n,]+/).map(d => d.trim()).filter(d => d.length > 0);
+                // 限制每条线路最多5个IP
+                updates.bestDomains = validateAndLimitIPs(bestDomainsList);
+            }
+        }
+        
+        // 处理 subUrl 和 websiteUrl：只在明确提供时才更新
+        if (subUrl !== undefined) {
+            updates.subUrl = subUrl;
+        }
+        if (websiteUrl !== undefined) {
+            updates.websiteUrl = websiteUrl;
         }
         
         const settings = { 
             ...currentSettings, 
-            proxyIPs, 
-            bestDomains: bestDomainsList, 
-            subUrl, 
-            websiteUrl 
+            ...updates
         };
         
         db.saveSettings(settings);
@@ -1271,29 +1280,6 @@ function importData(req, res) {
 }
 
 // 获取反代IP列表
-function getProxyIPs(req, res) {
-    try {
-        const proxyIPs = db.getProxyIPs();
-        res.json({ success: true, proxyIPs });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-}
-
-// 保存反代IP列表
-function saveProxyIPs(req, res) {
-    try {
-        const { proxyIPs } = req.body;
-        if (!Array.isArray(proxyIPs)) {
-            return res.status(400).json({ error: '无效的数据格式' });
-        }
-        db.saveProxyIPs(proxyIPs);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-}
-
 // 获取优选域名列表
 function getBestDomains(req, res) {
     try {
@@ -1307,13 +1293,50 @@ function getBestDomains(req, res) {
 }
 
 // 保存优选域名列表
-function saveBestDomains(req, res) {
+// 保存优选域名列表
+async function saveBestDomains(req, res) {
     try {
         const { bestDomains } = req.body;
         if (!Array.isArray(bestDomains)) {
             return res.status(400).json({ error: '无效的数据格式' });
         }
-        db.saveBestDomains(bestDomains);
+        
+        // 自动为纯IP添加地区标签
+        const enrichedDomains = await Promise.all(bestDomains.map(async (domain) => {
+            // 已经有标签的，保持不变
+            if (domain.includes('#')) {
+                return domain;
+            }
+            
+            // 提取IP地址
+            const ipMatch = domain.match(/^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})/);
+            if (ipMatch) {
+                const ip = ipMatch[1];
+                try {
+                    // 查询IP地理位置
+                    const geoResponse = await fetch(`https://ipinfo.io/${ip}/json`, {
+                        timeout: 3000
+                    });
+                    if (geoResponse.ok) {
+                        const geoData = await geoResponse.json();
+                        const countryMap = {
+                            'JP': '日本', 'KR': '韩国', 'US': '美国', 
+                            'HK': '香港', 'TW': '台湾', 'SG': '新加坡',
+                            'DE': '德国', 'UK': '英国', 'CN': '中国'
+                        };
+                        const countryName = countryMap[geoData.country] || geoData.country;
+                        return `${domain}#${geoData.country}${countryName}`;
+                    }
+                } catch (e) {
+                    // 查询失败，保持原样
+                    console.log(`无法查询IP地理位置: ${ip}`);
+                }
+            }
+            
+            return domain;
+        }));
+        
+        db.saveBestDomains(enrichedDomains);
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -1377,7 +1400,7 @@ function getAllProxyIPsWithMeta(req, res) {
     try {
         const proxyIPs = db.getAllProxyIPsWithMeta();
         const stats = db.getProxyIPStats();
-        res.json({ success: true, proxyIPs, stats });
+        res.json({ success: true, proxies: proxyIPs, stats });
     } catch (e) {
         console.error('获取 ProxyIP 列表失败:', e);
         res.status(500).json({ error: e.message });
@@ -1517,13 +1540,23 @@ async function checkProxyIPs(req, res) {
 // 删除 ProxyIP
 function deleteProxyIP(req, res) {
     try {
-        const { id } = req.body;
+        const { id, address, port } = req.body;
         
-        if (!id) {
+        let proxyId = id;
+        
+        // 如果没有传 id，通过 address 和 port 查找
+        if (!proxyId && address && port) {
+            const existing = db.checkProxyIPExists(address, port);
+            if (existing) {
+                proxyId = existing.id;
+            }
+        }
+        
+        if (!proxyId) {
             return res.status(400).json({ error: '缺少 ID 参数' });
         }
         
-        db.removeProxyIP(id);
+        db.removeProxyIP(proxyId);
         res.json({ success: true });
         
     } catch (e) {
@@ -1547,6 +1580,28 @@ function cleanInactiveProxyIPs(req, res) {
         
     } catch (e) {
         console.error('清理失效 ProxyIP 失败:', e);
+        res.status(500).json({ error: e.message });
+    }
+}
+
+// 更新 ProxyIP 排序
+function updateProxyIPOrder(req, res) {
+    try {
+        const { orderedIds } = req.body;
+        
+        if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+            return res.status(400).json({ error: '缺少有效的排序数据' });
+        }
+        
+        db.updateProxyIPOrder(orderedIds);
+        
+        res.json({ 
+            success: true, 
+            message: '排序已更新'
+        });
+        
+    } catch (e) {
+        console.error('更新 ProxyIP 排序失败:', e);
         res.status(500).json({ error: e.message });
     }
 }
@@ -1611,12 +1666,147 @@ function importAllData(req, res) {
             return res.status(400).json({ error: '无效的数据格式' });
         }
         
-        // TODO: 实现数据导入逻辑
-        // 这里需要谨慎处理，避免覆盖重要数据
+        const database = db.getDb();
         
-        db.addLog('数据导入', '导入数据（暂未实现完整功能）', 'warning');
-        res.json({ success: true, message: '数据导入功能开发中' });
+        let importedCounts = {
+            users: 0,
+            userAccounts: 0,
+            settings: 0,
+            plans: 0,
+            orders: 0,
+            announcements: 0,
+            inviteCodes: 0,
+            paymentChannels: 0
+        };
+
+        // 1. 导入 settings
+        if (data.settings && Array.isArray(data.settings) && data.settings.length > 0) {
+            for (const setting of data.settings) {
+                try {
+                    database.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(setting.key, setting.value);
+                    importedCounts.settings++;
+                } catch (e) {
+                    console.error('导入设置失败:', setting.key, e.message);
+                }
+            }
+        }
+
+        // 2. 导入 users
+        if (data.users && Array.isArray(data.users) && data.users.length > 0) {
+            for (const user of data.users) {
+                try {
+                    database.prepare(
+                        "INSERT OR REPLACE INTO users (uuid, name, expiry, create_at, enabled) VALUES (?, ?, ?, ?, ?)"
+                    ).run(user.uuid, user.name, user.expiry, user.create_at, user.enabled !== undefined ? user.enabled : 1);
+                    importedCounts.users++;
+                } catch (e) {
+                    console.error('导入用户失败:', user.uuid, e.message);
+                }
+            }
+        }
+
+        // 3. 导入 user_accounts
+        if (data.userAccounts && Array.isArray(data.userAccounts) && data.userAccounts.length > 0) {
+            for (const account of data.userAccounts) {
+                try {
+                    const existing = database.prepare("SELECT id FROM user_accounts WHERE username = ? OR uuid = ?").get(account.username, account.uuid);
+                    if (!existing) {
+                        const tempPasswordHash = db.hashPassword(account.username);
+                        database.prepare(
+                            "INSERT INTO user_accounts (username, password_hash, email, uuid, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?)"
+                        ).run(account.username, tempPasswordHash, account.email || '', account.uuid, account.created_at, account.last_login);
+                        importedCounts.userAccounts++;
+                    }
+                } catch (e) {
+                    console.error('导入账号失败:', account.username, e.message);
+                }
+            }
+        }
+
+        // 4. 导入 plans
+        if (data.plans && Array.isArray(data.plans) && data.plans.length > 0) {
+            for (const plan of data.plans) {
+                try {
+                    const durationDays = plan.duration_days || plan.duration || 30;
+                    database.prepare(
+                        "INSERT OR REPLACE INTO subscription_plans (id, name, description, duration_days, price, enabled, created_at, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                    ).run(plan.id, plan.name, plan.description || '', durationDays, plan.price, plan.enabled !== undefined ? plan.enabled : 1, plan.created_at, plan.sort_order || plan.id);
+                    importedCounts.plans++;
+                } catch (e) {
+                    console.error('导入套餐失败:', plan.name, e.message);
+                }
+            }
+        }
+
+        // 5. 导入 orders
+        if (data.orders && Array.isArray(data.orders) && data.orders.length > 0) {
+            for (const order of data.orders) {
+                try {
+                    const userExists = database.prepare("SELECT id FROM user_accounts WHERE id = ?").get(order.user_id);
+                    const planExists = database.prepare("SELECT id FROM subscription_plans WHERE id = ?").get(order.plan_id);
+                    
+                    if (!userExists || !planExists) continue;
+                    
+                    database.prepare(
+                        "INSERT OR REPLACE INTO orders (id, user_id, plan_id, amount, status, created_at, paid_at, payment_order_id, payment_trade_id, payment_type, order_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    ).run(order.id, order.user_id, order.plan_id, order.amount || 0, order.status, order.created_at, order.paid_at, order.payment_order_id, order.payment_trade_id, order.payment_type, order.order_no);
+                    importedCounts.orders++;
+                } catch (e) {
+                    console.error('导入订单失败:', order.id, e.message);
+                }
+            }
+        }
+
+        // 6. 导入 announcements
+        if (data.announcements && Array.isArray(data.announcements) && data.announcements.length > 0) {
+            for (const ann of data.announcements) {
+                try {
+                    database.prepare(
+                        "INSERT OR REPLACE INTO announcements (id, title, content, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+                    ).run(ann.id, ann.title, ann.content, ann.enabled !== undefined ? ann.enabled : 1, ann.created_at, ann.updated_at || ann.created_at);
+                    importedCounts.announcements++;
+                } catch (e) {
+                    console.error('导入公告失败:', ann.title, e.message);
+                }
+            }
+        }
+
+        // 7. 导入 invite_codes
+        if (data.inviteCodes && Array.isArray(data.inviteCodes) && data.inviteCodes.length > 0) {
+            for (const invite of data.inviteCodes) {
+                try {
+                    database.prepare(
+                        "INSERT OR REPLACE INTO invite_codes (id, code, trial_days, max_uses, used_count, enabled, created_at, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                    ).run(invite.id, invite.code, invite.trial_days || 0, invite.max_uses || 1, invite.used_count || 0, invite.enabled !== undefined ? invite.enabled : 1, invite.created_at, invite.remark || '');
+                    importedCounts.inviteCodes++;
+                } catch (e) {
+                    console.error('导入邀请码失败:', invite.code, e.message);
+                }
+            }
+        }
+
+        // 8. 导入 payment_channels
+        if (data.paymentChannels && Array.isArray(data.paymentChannels) && data.paymentChannels.length > 0) {
+            for (const channel of data.paymentChannels) {
+                try {
+                    database.prepare(
+                        "INSERT OR REPLACE INTO payment_channels (id, name, code, api_url, api_token, callback_url, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                    ).run(channel.id, channel.name, channel.code, channel.api_url || '', channel.api_token || '', channel.callback_url || channel.notify_url || '', channel.enabled !== undefined ? channel.enabled : 1, channel.created_at);
+                    importedCounts.paymentChannels++;
+                } catch (e) {
+                    console.error('导入支付通道失败:', channel.name, e.message);
+                }
+            }
+        }
+
+        db.addLog('数据导入', `成功导入 ${importedCounts.users} 用户, ${importedCounts.userAccounts} 账号, ${importedCounts.plans} 套餐, ${importedCounts.orders} 订单`, 'info');
+        res.json({ 
+            success: true, 
+            message: '数据导入完成',
+            counts: importedCounts
+        });
     } catch (e) {
+        console.error('数据导入失败:', e);
         db.addLog('数据导入失败', e.message, 'error');
         res.status(500).json({ error: e.message });
     }
@@ -1716,8 +1906,6 @@ module.exports = {
     deletePaymentChannel,
     exportData,
     importData,
-    getProxyIPs,
-    saveProxyIPs,
     getBestDomains,
     saveBestDomains,
     fetchBestIPs,
@@ -1726,6 +1914,7 @@ module.exports = {
     checkProxyIPs,
     deleteProxyIP,
     cleanInactiveProxyIPs,
+    updateProxyIPOrder,
     changeAdminPassword,
     exportAllData,
     importAllData,

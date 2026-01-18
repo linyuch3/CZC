@@ -363,6 +363,14 @@ function renderAdminPanel() {
     function copySubLinkAndClose(client) {
       console.log('copySubLinkAndClose will be initialized after DOM load');
     }
+    function toggleSidebar() {
+      // 实际实现会在页面加载后覆盖
+      console.log('toggleSidebar will be initialized after DOM load');
+    }
+    function adminLogout() {
+      // 实际实现会在页面加载后覆盖
+      console.log('adminLogout will be initialized after DOM load');
+    }
   </script>
   <style>
     body { font-family: 'Inter', sans-serif; }
@@ -1007,8 +1015,11 @@ function renderAdminPanel() {
             
             <!-- 订阅设置部分 -->
             <section class="space-y-6">
-              <div class="flex items-center gap-2 mb-4">
+              <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold tracking-tight">订阅设置</h2>
+                <button onclick="saveAllProxyIPSettings()" class="px-4 py-2 bg-primary text-white dark:bg-slate-100 dark:text-slate-950 text-sm font-medium rounded-md hover:opacity-90 transition-opacity">
+                  保存设置
+                </button>
               </div>
               <div class="grid gap-6">
                 <div class="space-y-2">
@@ -1090,6 +1101,9 @@ function renderAdminPanel() {
                 <table class="w-full text-sm">
                   <thead class="bg-slate-50 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800">
                     <tr>
+                      <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-zinc-400 w-10">
+                        <span class="material-symbols-outlined text-[16px]" title="拖动排序">drag_indicator</span>
+                      </th>
                       <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-zinc-400">地址</th>
                       <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-zinc-400">地区</th>
                       <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-zinc-400">状态</th>
@@ -1101,7 +1115,7 @@ function renderAdminPanel() {
                   </thead>
                   <tbody id="proxyip-table-body" class="divide-y divide-slate-200 dark:divide-zinc-800">
                     <tr>
-                      <td colspan="7" class="p-8 text-center text-slate-400 dark:text-zinc-600">
+                      <td colspan="8" class="p-8 text-center text-slate-400 dark:text-zinc-600">
                         <span class="material-symbols-outlined text-4xl mb-2">cloud_off</span>
                         <p class="text-sm">暂无 ProxyIP</p>
                       </td>
@@ -1152,7 +1166,7 @@ function renderAdminPanel() {
             <!-- 批量输入区 -->
             <div class="space-y-4">
               <div class="relative">
-                <textarea id="best-domains-batch-input" class="w-full min-h-[140px] p-4 text-sm font-mono bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-lg focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="批量添加，一行一个\\n格式：域名/IP:端口#别名\\n例如：www.example.com:443#香港\\n例如：104.16.88.20:443#美国"></textarea>
+                <textarea id="best-domains-batch-input" class="w-full min-h-[140px] p-4 text-sm font-mono bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-lg focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="批量添加，一行一个&#10;格式：域名/IP:端口#别名&#10;例如：www.example.com:443#香港&#10;例如：104.16.88.20:443#美国"></textarea>
               </div>
               
               <div class="flex flex-wrap gap-3">
@@ -2960,7 +2974,7 @@ function renderAdminPanel() {
       const tbody = document.getElementById('proxyip-table-body');
       
       if (!proxies || proxies.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-400 dark:text-zinc-600"><span class="material-symbols-outlined text-4xl mb-2">cloud_off</span><p class="text-sm">暂无 ProxyIP</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-slate-400 dark:text-zinc-600"><span class="material-symbols-outlined text-4xl mb-2">cloud_off</span><p class="text-sm">暂无 ProxyIP</p></td></tr>';
         return;
       }
       
@@ -2971,7 +2985,10 @@ function renderAdminPanel() {
         const timeAgo = proxy.last_check_at ? formatTimeAgo(proxy.last_check_at) : '-';
         const responseTime = proxy.response_time ? proxy.response_time + ' ms' : '-';
         
-        html += '<tr class="hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition-colors">' +
+        html += '<tr draggable="true" data-proxy-id="' + proxy.id + '" class="hover:bg-slate-50 dark:hover:bg-zinc-900/50 cursor-move transition-colors">' +
+          '<td class="px-4 py-3">' +
+            '<span class="material-symbols-outlined text-slate-400 dark:text-zinc-600 text-[18px]">drag_indicator</span>' +
+          '</td>' +
           '<td class="px-4 py-3">' +
             '<code class="text-xs font-mono">' + proxy.address + (proxy.port !== 443 ? ':' + proxy.port : '') + '</code>' +
             (proxy.isp ? '<br><span class="text-xs text-slate-500 dark:text-zinc-500">' + proxy.isp + '</span>' : '') +
@@ -2986,7 +3003,20 @@ function renderAdminPanel() {
           '</td>' +
           '<td class="px-4 py-3"><span class="text-xs text-slate-500 dark:text-zinc-500">' + timeAgo + '</span></td>' +
           '<td class="px-4 py-3 text-right">' +
-            '<div class="flex items-center justify-end gap-2">' +
+            '<div class="flex items-center justify-end gap-1">' +
+              '<button onclick="moveProxyIPToTop(' + proxy.id + ')" class="text-slate-400 hover:text-blue-500 dark:text-zinc-600 dark:hover:text-blue-400 transition-colors" title="移到顶部">' +
+                '<span class="material-symbols-outlined text-[18px]">vertical_align_top</span>' +
+              '</button>' +
+              '<button onclick="moveProxyIPUp(' + proxy.id + ')" class="text-slate-400 hover:text-blue-500 dark:text-zinc-600 dark:hover:text-blue-400 transition-colors" title="上移">' +
+                '<span class="material-symbols-outlined text-[18px]">arrow_upward</span>' +
+              '</button>' +
+              '<button onclick="moveProxyIPDown(' + proxy.id + ')" class="text-slate-400 hover:text-blue-500 dark:text-zinc-600 dark:hover:text-blue-400 transition-colors" title="下移">' +
+                '<span class="material-symbols-outlined text-[18px]">arrow_downward</span>' +
+              '</button>' +
+              '<button onclick="moveProxyIPToBottom(' + proxy.id + ')" class="text-slate-400 hover:text-blue-500 dark:text-zinc-600 dark:hover:text-blue-400 transition-colors" title="移到底部">' +
+                '<span class="material-symbols-outlined text-[18px]">vertical_align_bottom</span>' +
+              '</button>' +
+              '<span class="inline-block w-px h-4 bg-slate-200 dark:bg-zinc-700 mx-1"></span>' +
               '<button onclick="checkSingleProxyIP(&quot;' + proxy.address + '&quot;, ' + proxy.port + ')" class="text-slate-400 hover:text-primary dark:text-zinc-600 dark:hover:text-zinc-300 transition-colors" title="检测">' +
                 '<span class="material-symbols-outlined text-[18px]">refresh</span>' +
               '</button>' +
@@ -2999,6 +3029,9 @@ function renderAdminPanel() {
       });
       
       tbody.innerHTML = html;
+      
+      // 初始化拖拽功能
+      initProxyIPDragAndDrop();
     }
     
     function getStatusBadge(status) {
@@ -3239,6 +3272,166 @@ function renderAdminPanel() {
         }
       } catch (error) {
         showAlert('清理失败: ' + error.message, 'error');
+      }
+    }
+    
+    // ========== ProxyIP 拖拽排序功能 ==========
+    let draggedProxyRow = null;
+    
+    function initProxyIPDragAndDrop() {
+      const tbody = document.getElementById('proxyip-table-body');
+      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      
+      rows.forEach(row => {
+        row.addEventListener('dragstart', handleProxyDragStart);
+        row.addEventListener('dragover', handleProxyDragOver);
+        row.addEventListener('drop', handleProxyDrop);
+        row.addEventListener('dragend', handleProxyDragEnd);
+      });
+    }
+    
+    function handleProxyDragStart(e) {
+      draggedProxyRow = e.target.closest('tr');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/html', draggedProxyRow.innerHTML);
+      draggedProxyRow.classList.add('opacity-50');
+    }
+    
+    function handleProxyDragOver(e) {
+      if (e.preventDefault) e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      
+      const targetRow = e.target.closest('tr');
+      if (targetRow && targetRow !== draggedProxyRow && targetRow.hasAttribute('draggable')) {
+        const tbody = targetRow.parentNode;
+        const allRows = [...tbody.querySelectorAll('tr[draggable="true"]')];
+        const draggedIndex = allRows.indexOf(draggedProxyRow);
+        const targetIndex = allRows.indexOf(targetRow);
+        
+        if (draggedIndex < targetIndex) {
+          tbody.insertBefore(draggedProxyRow, targetRow.nextSibling);
+        } else {
+          tbody.insertBefore(draggedProxyRow, targetRow);
+        }
+      }
+      return false;
+    }
+    
+    function handleProxyDrop(e) {
+      if (e.stopPropagation) e.stopPropagation();
+      return false;
+    }
+    
+    async function handleProxyDragEnd(e) {
+      draggedProxyRow.classList.remove('opacity-50');
+      
+      // 获取新的排序
+      const tbody = document.getElementById('proxyip-table-body');
+      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
+      
+      // 保存到服务器
+      try {
+        const response = await fetch('/api/admin/proxyips/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderedIds })
+        });
+        
+        const result = await response.json();
+        if (!result.success) {
+          showAlert('保存排序失败: ' + (result.error || '未知错误'), 'error');
+          refreshProxyIPStats(); // 刷新恢复原始顺序
+        }
+      } catch (error) {
+        console.error('保存排序失败:', error);
+        showAlert('保存排序失败: ' + error.message, 'error');
+        refreshProxyIPStats();
+      }
+      
+      draggedProxyRow = null;
+    }
+    
+    // ========== ProxyIP 快捷移动功能 ==========
+    
+    async function moveProxyIPToTop(proxyId) {
+      const tbody = document.getElementById('proxyip-table-body');
+      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
+      
+      const currentIndex = orderedIds.indexOf(proxyId);
+      if (currentIndex === 0) return; // 已经在顶部
+      
+      // 移除并插入到开头
+      orderedIds.splice(currentIndex, 1);
+      orderedIds.unshift(proxyId);
+      
+      await saveProxyIPOrder(orderedIds);
+    }
+    
+    async function moveProxyIPUp(proxyId) {
+      const tbody = document.getElementById('proxyip-table-body');
+      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
+      
+      const currentIndex = orderedIds.indexOf(proxyId);
+      if (currentIndex === 0) return; // 已经在顶部
+      
+      // 与上一个交换
+      [orderedIds[currentIndex - 1], orderedIds[currentIndex]] = [orderedIds[currentIndex], orderedIds[currentIndex - 1]];
+      
+      await saveProxyIPOrder(orderedIds);
+    }
+    
+    async function moveProxyIPDown(proxyId) {
+      const tbody = document.getElementById('proxyip-table-body');
+      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
+      
+      const currentIndex = orderedIds.indexOf(proxyId);
+      if (currentIndex === orderedIds.length - 1) return; // 已经在底部
+      
+      // 与下一个交换
+      [orderedIds[currentIndex], orderedIds[currentIndex + 1]] = [orderedIds[currentIndex + 1], orderedIds[currentIndex]];
+      
+      await saveProxyIPOrder(orderedIds);
+    }
+    
+    async function moveProxyIPToBottom(proxyId) {
+      const tbody = document.getElementById('proxyip-table-body');
+      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
+      
+      const currentIndex = orderedIds.indexOf(proxyId);
+      if (currentIndex === orderedIds.length - 1) return; // 已经在底部
+      
+      // 移除并插入到末尾
+      orderedIds.splice(currentIndex, 1);
+      orderedIds.push(proxyId);
+      
+      await saveProxyIPOrder(orderedIds);
+    }
+    
+    async function saveProxyIPOrder(orderedIds) {
+      try {
+        const response = await fetch('/api/admin/proxyips/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderedIds })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          // 刷新列表
+          await refreshProxyIPStats();
+        } else {
+          showAlert('保存排序失败: ' + (result.error || '未知错误'), 'error');
+          await refreshProxyIPStats();
+        }
+      } catch (error) {
+        console.error('保存排序失败:', error);
+        showAlert('保存排序失败: ' + error.message, 'error');
+        await refreshProxyIPStats();
       }
     }
     
@@ -5429,6 +5622,12 @@ function renderAdminPanel() {
           if (toggleRequireInvite) {
             toggleRequireInvite.checked = settings.requireInviteCode || false;
           }
+          
+          // 加载订阅设置（如果在反代IP页面）
+          const subUrlInput = document.getElementById('sub-url');
+          const websiteUrlInput = document.getElementById('website-url');
+          if (subUrlInput) subUrlInput.value = settings.subUrl || '';
+          if (websiteUrlInput) websiteUrlInput.value = settings.websiteUrl || '';
         }
       } catch (error) {
         console.error('加载系统配置失败:', error);
@@ -5507,7 +5706,63 @@ function renderAdminPanel() {
     
     // 导入数据
     async function importData() {
-      alert('数据导入功能开发中...');
+      // 创建文件选择输入
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // 确认操作
+        const confirmed = confirm(
+          'WARNING: Import will overwrite existing data!\\n\\n' +
+          'It is recommended to export current data as backup before importing.\\n\\n' +
+          'Do you want to continue?'
+        );
+        
+        if (!confirmed) return;
+        
+        try {
+          // 读取文件内容
+          const text = await file.text();
+          const data = JSON.parse(text);
+          
+          // 发送到服务器
+          const res = await fetch('/api/admin/import-all', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+          });
+          
+          const result = await res.json();
+          
+          if (result.success) {
+            const stats = result.counts || {};
+            alert(
+              '[SUCCESS] Data imported successfully!\\n\\n' +
+              'Import Statistics:\\n' +
+              'Users: ' + (stats.users || 0) + '\\n' +
+              'Accounts: ' + (stats.userAccounts || 0) + '\\n' +
+              'Plans: ' + (stats.plans || 0) + '\\n' +
+              'Orders: ' + (stats.orders || 0) + '\\n' +
+              'Announcements: ' + (stats.announcements || 0) + '\\n' +
+              'Invite Codes: ' + (stats.inviteCodes || 0) + '\\n' +
+              'Payment Channels: ' + (stats.paymentChannels || 0) + '\\n' +
+              'Settings: ' + (stats.settings || 0)
+            );
+            // 刷新页面以显示最新数据
+            location.reload();
+          } else {
+            alert('[FAILED] Import failed: ' + (result.error || 'Unknown error'));
+          }
+        } catch (e) {
+          alert('[FAILED] Import failed: ' + e.message);
+        }
+      };
+      
+      input.click();
     }
     
     // 修改密码

@@ -278,6 +278,7 @@ function initDatabase() {
                     last_check_at INTEGER,
                     fail_count INTEGER DEFAULT 0,
                     success_count INTEGER DEFAULT 0,
+                    sort_order INTEGER DEFAULT 0,
                     created_at INTEGER NOT NULL,
                     updated_at INTEGER NOT NULL,
                     UNIQUE(address, port)
@@ -286,8 +287,23 @@ function initDatabase() {
                 CREATE INDEX idx_proxy_ips_status ON proxy_ips(status);
                 CREATE INDEX idx_proxy_ips_region ON proxy_ips(region);
                 CREATE INDEX idx_proxy_ips_response_time ON proxy_ips(response_time);
+                CREATE INDEX idx_proxy_ips_sort_order ON proxy_ips(sort_order);
             `);
             console.log('[数据库迁移] ✅ proxy_ips 表创建成功');
+        }
+        
+        // 迁移：为已存在的 proxy_ips 表添加 sort_order 字段
+        const sortOrderColumnExists = db.prepare(
+            "SELECT COUNT(*) as count FROM pragma_table_info('proxy_ips') WHERE name='sort_order'"
+        ).get();
+        
+        if (sortOrderColumnExists.count === 0) {
+            console.log('[数据库迁移] 为 proxy_ips 表添加 sort_order 字段...');
+            db.exec('ALTER TABLE proxy_ips ADD COLUMN sort_order INTEGER DEFAULT 0');
+            db.exec('CREATE INDEX idx_proxy_ips_sort_order ON proxy_ips(sort_order)');
+            // 初始化排序值为 id
+            db.exec('UPDATE proxy_ips SET sort_order = id WHERE sort_order = 0 OR sort_order IS NULL');
+            console.log('[数据库迁移] ✅ sort_order 字段添加成功');
         }
     } catch (e) {
         console.error('[数据库迁移] proxy_ips 表创建错误:', e.message);
@@ -980,14 +996,7 @@ function addProxyIP(address, port = 443) {
 function getAllProxyIPsWithMeta() {
     const stmt = getDb().prepare(`
         SELECT * FROM proxy_ips 
-        ORDER BY 
-            CASE status 
-                WHEN 'active' THEN 1 
-                WHEN 'pending' THEN 2 
-                ELSE 3 
-            END,
-            response_time ASC,
-            created_at DESC
+        ORDER BY sort_order ASC, id ASC
     `);
     return stmt.all();
 }
@@ -1099,6 +1108,21 @@ function getProxyIPStats() {
     return stats;
 }
 
+// 更新 ProxyIP 排序
+function updateProxyIPOrder(orderedIds) {
+    const db = getDb();
+    const updateStmt = db.prepare('UPDATE proxy_ips SET sort_order = ? WHERE id = ?');
+    
+    const transaction = db.transaction(() => {
+        orderedIds.forEach((id, index) => {
+            updateStmt.run(index + 1, id);
+        });
+    });
+    
+    transaction();
+    return { success: true };
+}
+
 // 清理失效的 ProxyIP（连续失败超过阈值）
 function cleanInactiveProxyIPs(failThreshold = 5) {
     const stmt = getDb().prepare(`
@@ -1106,6 +1130,21 @@ function cleanInactiveProxyIPs(failThreshold = 5) {
         WHERE fail_count >= ? AND status = 'failed'
     `);
     return stmt.run(failThreshold);
+}
+
+// 更新 ProxyIP 排序
+function updateProxyIPOrder(orderedIds) {
+    const db = getDb();
+    const updateStmt = db.prepare('UPDATE proxy_ips SET sort_order = ? WHERE id = ?');
+    
+    const transaction = db.transaction(() => {
+        orderedIds.forEach((id, index) => {
+            updateStmt.run(index + 1, id);
+        });
+    });
+    
+    transaction();
+    return { success: true };
 }
 
 // ==================== 日志管理 ====================
@@ -1412,6 +1451,8 @@ module.exports = {
     checkProxyIPExists,
     getProxyIPStats,
     cleanInactiveProxyIPs,
+    updateProxyIPOrder,
+    updateProxyIPOrder,
     
     // 日志
     addLog,

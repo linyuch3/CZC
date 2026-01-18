@@ -1,7 +1,7 @@
 import { connect } from 'cloudflare:sockets';
 
-const REMOTE_API_URL = 'https://ccfly.me/api/users';
-const API_TOKEN = '';
+const REMOTE_API_URL = 'https://laughing-space-capybara-97x9444q969v3pqjr-3000.app.github.dev/api/users';
+const API_TOKEN = 'd232d32c885e21177f0fec6dd3b5ea0f112b7cff5ea7ade75b55767f414a324d';
 const FALLBACK_CONFIG = {
     proxyIPs: ['ProxyIP.SG.CMLiussss.net'],
     bestDomains: []
@@ -19,6 +19,25 @@ const COLO_REGIONS = {
     EU: new Set(['AMS', 'CDG', 'FRA', 'LHR', 'DUB', 'MAD', 'MXP', 'ZRH', 'VIE', 'WAW', 'PRG', 'BRU', 'CPH', 'HEL', 'OSL', 'ARN', 'IST', 'ATH']),
     AS: new Set(['HKG', 'SIN', 'BKK', 'KUL', 'SGN', 'MNL', 'CGK', 'DEL', 'BOM', 'SYD', 'MEL', 'TPE', 'SEL'])
 };
+
+// 详细的 Cloudflare 机房到地区代码映射（用于智能 ProxyIP 选择）
+const COLO_TO_REGION = {
+    // 香港
+    'HKG': 'HK',
+    // 台湾
+    'TPE': 'TW',
+    // 日本
+    'NRT': 'JP', 'KIX': 'JP', 'FUK': 'JP', 'OKA': 'JP',
+    // 韩国
+    'ICN': 'KR', 'SEL': 'KR',
+    // 新加坡
+    'SIN': 'SG',
+    // 美国
+    'LAX': 'US', 'SJC': 'US', 'SEA': 'US', 'ORD': 'US', 'ATL': 'US', 'MIA': 'US', 'DFW': 'US', 'IAD': 'US', 'EWR': 'US',
+    // 欧洲
+    'LHR': 'UK', 'AMS': 'NL', 'FRA': 'DE', 'CDG': 'FR'
+};
+
 const coloToProxyMap = new Map();
 for (const [region, colos] of Object.entries(COLO_REGIONS)) {
     for (const colo of colos) coloToProxyMap.set(colo, REGION_PROXY_IPS[region]);
@@ -26,6 +45,31 @@ for (const [region, colos] of Object.entries(COLO_REGIONS)) {
 
 function getProxyIPByColo(colo) {
     return coloToProxyMap.get(colo) || REGION_PROXY_IPS.US;
+}
+
+// 根据 Cloudflare 机房位置选择最佳 ProxyIP
+function selectProxyByNodeColo(proxyList, colo) {
+    if (!proxyList?.length) return null;
+    
+    // 获取当前机房对应的地区代码
+    const nodeRegion = COLO_TO_REGION[colo];
+    if (!nodeRegion) {
+        console.log(`[ProxyIP选择] 未知机房: ${colo}，使用第一个 ProxyIP`);
+        return proxyList[0];
+    }
+    
+    // 查找与节点同地区的 ProxyIP
+    for (const proxy of proxyList) {
+        const proxyRegion = extractGeoLocation(proxy);
+        if (proxyRegion === nodeRegion) {
+            console.log(`[ProxyIP选择] 机房: ${colo} (${nodeRegion}) → 匹配到同地区 ProxyIP: ${proxy}`);
+            return proxy;
+        }
+    }
+    
+    // 没有找到同地区的，使用第一个
+    console.log(`[ProxyIP选择] 机房: ${colo} (${nodeRegion}) → 无同地区 ProxyIP，使用: ${proxyList[0]}`);
+    return proxyList[0];
 }
 
 function smartSelectProxyIP(proxyList, colo) {
@@ -51,17 +95,31 @@ let cachedData = {
     users: {},
     settings: FALLBACK_CONFIG,
     websiteUrl: '',
-    lastUpdate: 0
+    lastUpdate: 0,
+    ipToRegionMap: new Map()
 };
 
 const GEO_KEYWORDS = {
-    'HK': ['hk', '香港'], 'TW': ['tw', '台湾'], 'JP': ['jp', '日本'],
-    'SG': ['sg', '新加坡'], 'US': ['us', '美国'], 'KR': ['kr', '韩国'],
-    'DE': ['de', '德国'], 'UK': ['uk', '英国']
+    'HK': ['hk', '香港', 'hongkong', 'hong-kong'],
+    'TW': ['tw', '台湾', 'taiwan'],
+    'JP': ['jp', '日本', 'japan', 'tokyo', 'osaka', 'nrt', 'kix', 'ngo'],
+    'SG': ['sg', '新加坡', 'singapore'],
+    'US': ['us', '美国', 'usa', 'america', 'losangeles', 'newyork', 'seattle', 'dallas', 'miami'],
+    'KR': ['kr', '韩国', 'korea', 'seoul', 'icn', 'kor'],
+    'DE': ['de', '德国', 'germany', 'frankfurt', 'berlin'],
+    'UK': ['uk', '英国', 'london', 'britain', 'england'],
+    'EU': ['eu', '欧洲', 'europe', 'amsterdam', 'paris', 'ams', 'cdg', 'fra', 'lhr']
 };
 
 function extractGeoLocation(str) {
     if (!str) return null;
+    if (cachedData.ipToRegionMap.has(str)) {
+        return cachedData.ipToRegionMap.get(str);
+    }
+    const ipOnly = str.replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+    if (cachedData.ipToRegionMap.has(ipOnly)) {
+        return cachedData.ipToRegionMap.get(ipOnly);
+    }
     const s = str.toLowerCase();
     for (const [region, kws] of Object.entries(GEO_KEYWORDS)) {
         for (const kw of kws) if (s.includes(kw)) return region;
@@ -176,12 +234,8 @@ async function syncRemoteConfig(forceRefresh = false) {
                 cachedData.websiteUrl = data.settings.subUrl;
             }
         }
-        
-        // 更新设置（确保 settings 不为 null）
         if (data.settings && typeof data.settings === 'object') {
             const settings = {};
-            
-            // 处理 proxyIPs (支持数组和单个字符串)
             if (Array.isArray(data.settings.proxyIPs) && data.settings.proxyIPs.length > 0) {
                 settings.proxyIPs = data.settings.proxyIPs;
             } else if (data.settings.proxyIP) {
@@ -189,10 +243,22 @@ async function syncRemoteConfig(forceRefresh = false) {
             } else {
                 settings.proxyIPs = FALLBACK_CONFIG.proxyIPs;
             }
-            
-            // 处理 bestDomains
             if (Array.isArray(data.settings.bestDomains) && data.settings.bestDomains.length > 0) {
                 settings.bestDomains = data.settings.bestDomains;
+                cachedData.ipToRegionMap.clear();
+                data.settings.bestDomains.forEach(item => {
+                    const parts = item.split('#');
+                    const addressPart = parts[0].trim();
+                    const label = parts[1] ? parts[1].trim() : '';
+                    const region = extractGeoLocation(label || addressPart);
+                    if (region) {
+                        cachedData.ipToRegionMap.set(addressPart, region);
+                        const ipOnly = addressPart.replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+                        cachedData.ipToRegionMap.set(ipOnly, region);
+                    }
+                });
+                
+                console.log(`[配置同步] 已建立 ${cachedData.ipToRegionMap.size} 个IP地区映射`);
             } else {
                 settings.bestDomains = FALLBACK_CONFIG.bestDomains;
             }
@@ -231,7 +297,7 @@ async function handleSubscription(req, uuid, userInfo) {
 
 function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
     const links = [];
-    const wsPath = encodeURIComponent('/?ed=2048');
+    const wsPath = '/?ed=2048';
     const protocol = 'vless';
     const domains = cachedData.settings.bestDomains || FALLBACK_CONFIG.bestDomains;
     
@@ -249,8 +315,6 @@ function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
         const firstItem = domains[0];
         const parts = firstItem.split('#');
         let addressPart = parts[0].trim();
-        
-        // 处理地址和端口
         if (addressPart.startsWith('[')) {
             firstAddress = addressPart;
         } else if (addressPart.includes('[') && addressPart.includes(']')) {
@@ -271,8 +335,6 @@ function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
             }
         }
     }
-    
-    // 构建公共参数
     const commonParams = new URLSearchParams({
         encryption: 'none',
         security: 'tls',
@@ -294,62 +356,43 @@ function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
     const sortedDomains = [...domains].sort((a, b) => {
         const isV6IpA = a.includes('[');
         const isV6IpB = b.includes('[');
-        if (isV6IpA && !isV6IpB) return 1;  // a是IPv6 IP, b不是, a排后面
-        if (!isV6IpA && isV6IpB) return -1; // a不是IPv6 IP, b是, a排前面
-        return 0; // 其他情况保持原顺序
+        if (isV6IpA && !isV6IpB) return 1;
+        if (!isV6IpA && isV6IpB) return -1;
+        return 0;
     });
     
     sortedDomains.forEach((item, index) => {
         const parts = item.split('#');
         let addressPart = parts[0].trim();
         const customAlias = parts[1] ? parts[1].trim() : null;
-        
-        // 处理地址和端口（支持 IPv6）
         let address;
-        
-        // 检测 IPv6 地址（已经带方括号的格式：[2606:4700::]:443）
         if (addressPart.startsWith('[')) {
-            // IPv6 地址已经是正确格式，直接使用
             address = addressPart;
         } else if (addressPart.includes('[') && addressPart.includes(']')) {
-            // IPv6 格式已经包含方括号
             address = addressPart;
         } else {
-            // 检测是否是裸 IPv6 地址（包含多个冒号但没有方括号）
             const colonCount = (addressPart.match(/:/g) || []).length;
-            
             if (colonCount > 1) {
-                // 裸 IPv6 地址
                 const ipv6PortMatch = addressPart.match(/^(.+):(\d+)$/);
                 if (ipv6PortMatch && !isNaN(ipv6PortMatch[2])) {
-                    // 有端口: 2606:4700::1:443
                     const ipv6Addr = ipv6PortMatch[1];
                     const port = ipv6PortMatch[2];
                     address = `[${ipv6Addr}]:${port}`;
                 } else {
-                    // 无端口，添加默认端口
                     address = `[${addressPart}]:443`;
                 }
             } else if (addressPart.includes(':')) {
-                // IPv4 或域名，已包含端口
                 address = addressPart;
             } else {
-                // IPv4 或域名，没有端口，添加默认端口 443
                 address = `${addressPart}:443`;
             }
         }
-        
-        // 生成节点名称(直接使用域名/IP或自定义别名,不添加用户名前缀)
         let nodeName;
         if (customAlias) {
-            // 使用自定义别名
             nodeName = customAlias;
         } else {
-            // 使用地址(去掉端口)作为节点名
             nodeName = addressPart.replace(/:\d+$/, '');
         }
-        
-        // 构建 VLESS 参数
         const params = new URLSearchParams({
             encryption: 'none',
             security: 'tls',
@@ -383,26 +426,12 @@ async function handleWebSocket(req) {
             url.pathname = decoded.substring(0, queryIndex);
         }
     }
-    
-    // 获取代理模式参数
     const mode = url.searchParams.get('mode') || 'auto';
     const proxyParam = url.searchParams.get('proxyip');
-    
-    // 获取 CF 机房代码，用于智能选择 ProxyIP
     const colo = req.cf?.colo || '';
-    
-    // 获取管理后台配置的 ProxyIP 列表
     const configuredProxyIPs = cachedData.settings.proxyIPs || FALLBACK_CONFIG.proxyIPs;
-    
-    // 确定代理 IP：优先 URL 参数 > 从配置列表中智能选择 > 硬编码兜底
     let proxyIP = proxyParam;
-    if (!proxyIP && configuredProxyIPs.length > 0) {
-        // 从配置的列表中智能选择（根据地理位置匹配）
-        proxyIP = smartSelectProxyIP(configuredProxyIPs, colo);
-    }
-    if (!proxyIP) {
-        proxyIP = getProxyIPByColo(colo);
-    }
+    let targetAddressForProxy = null;
     
     let remoteSocket = null;
     let udpWriter = null;
@@ -427,8 +456,6 @@ async function handleWebSocket(req) {
                 }
                 try { controller.error(new Error('WebSocket error')); } catch (e) {}
             });
-            
-            // 处理早期数据 (Early Data)
             const earlyData = req.headers.get('sec-websocket-protocol');
             if (earlyData) {
                 try {
@@ -438,21 +465,17 @@ async function handleWebSocket(req) {
                     );
                     controller.enqueue(binaryData.buffer);
                 } catch (e) {
-                    // 忽略解码错误
                 }
             }
         }
     }).pipeTo(new WritableStream({
         async write(chunk) {
-            // 如果是 DNS 查询，特殊处理
             if (isDNSQuery && udpWriter) {
                 try {
                     await udpWriter.write(chunk);
                 } catch (e) {}
                 return;
             }
-            
-            // 如果已经建立连接，直接转发数据
             if (remoteSocket) {
                 try {
                     const writer = remoteSocket.writable.getWriter();
@@ -461,50 +484,31 @@ async function handleWebSocket(req) {
                 } catch (e) {}
                 return;
             }
-            
-            // 解析 VLESS 协议头
             if (chunk.byteLength < 24) {
-                return; // 数据包太小，忽略
+                return;
             }
-            
             const dataView = new DataView(chunk);
-            
-            // 验证 UUID (偏移 1-16)
             const uuidBytes = new Uint8Array(chunk.slice(1, 17));
             const uuidString = bytesToUUID(uuidBytes);
-            
-            // 检查 UUID 是否在允许列表中
             if (!cachedData.users[uuidString]) {
-                // UUID 不在缓存中，尝试强制刷新配置
                 await syncRemoteConfig(true);
-                
-                // 再次检查
                 if (!cachedData.users[uuidString]) {
                     console.log('Unauthorized UUID:', uuidString);
-                    return; // 未授权的 UUID，丢弃连接
+                    return;
                 }
             }
-            
-            // 解析协议头
-            const version = dataView.getUint8(0); // 应该是 0
+            const version = dataView.getUint8(0);
             const optionLength = dataView.getUint8(17);
             const command = dataView.getUint8(18 + optionLength);
-            
-            // 仅支持 TCP (1) 和 UDP (2)
             if (command !== 1 && command !== 2) {
                 return;
             }
-            
-            // 解析目标地址
             let position = 19 + optionLength;
             const targetPort = dataView.getUint16(position);
             const addressType = dataView.getUint8(position + 2);
             position += 3;
-            
             let targetAddress = '';
-            
             if (addressType === 1) {
-                // IPv4
                 targetAddress = `${dataView.getUint8(position)}.${dataView.getUint8(position + 1)}.${dataView.getUint8(position + 2)}.${dataView.getUint8(position + 3)}`;
                 position += 4;
             } else if (addressType === 2) {
@@ -531,19 +535,23 @@ async function handleWebSocket(req) {
             // 实际负载数据
             const payload = chunk.slice(position);
             
-            // UDP 模式 - 仅支持 DNS 查询
+            // 智能选择 ProxyIP（如果尚未通过URL参数指定）
+            if (!proxyIP && configuredProxyIPs.length > 0) {
+                // 根据节点的 Cloudflare 机房位置智能选择 ProxyIP
+                proxyIP = selectProxyByNodeColo(configuredProxyIPs, colo);
+            }
+            if (!proxyIP) {
+                proxyIP = getProxyIPByColo(colo);
+                console.log(`[ProxyIP兜底] CF机房: ${colo} → ProxyIP: ${proxyIP}`);
+            }
             if (command === 2) {
                 if (targetPort !== 53) {
-                    return; // 仅支持 DNS (端口 53)
+                    return;
                 }
-                
                 isDNSQuery = true;
                 let headerSent = false;
-                
-                // DNS over HTTPS 处理
                 const { readable, writable } = new TransformStream({
                     transform(dnsQuery, controller) {
-                        // 解析 DNS 查询包（每个包前有 2 字节长度）
                         let offset = 0;
                         while (offset < dnsQuery.byteLength) {
                             const length = new DataView(dnsQuery.slice(offset, offset + 2)).getUint16(0);
@@ -553,8 +561,6 @@ async function handleWebSocket(req) {
                         }
                     }
                 });
-                
-                // 发送 DNS 查询到 Cloudflare DoH
                 readable.pipeTo(new WritableStream({
                     async write(dnsQuery) {
                         try {
@@ -582,25 +588,16 @@ async function handleWebSocket(req) {
                 })).catch(() => {});
                 
                 udpWriter = writable.getWriter();
-                
-                // 写入第一个 DNS 查询
                 try {
                     await udpWriter.write(payload);
                 } catch (e) {}
-                
                 return;
             }
-            
-            // TCP 模式 - 建立连接
-            // 策略：直连优先，失败则用 ProxyIP（兼顾速度和 1034 问题）
             let socket = null;
-            
-            // 1. 先尝试直连（大部分非 CF 网站直连更快）
             try {
                 socket = connect({ hostname: targetAddress, port: targetPort });
                 await socket.opened;
             } catch (e) {
-                // 2. 直连失败，使用 ProxyIP（解决 CF→CF 的 1034 错误）
                 socket = null;
                 if (proxyIP && mode !== 'direct') {
                     const [proxyHost, proxyPort] = proxyIP.includes(':') 
@@ -614,27 +611,20 @@ async function handleWebSocket(req) {
             }
             
             if (!socket) return;
-            
             remoteSocket = socket;
-            
-            // 发送初始负载
             try {
                 const writer = socket.writable.getWriter();
                 await writer.write(payload);
                 writer.releaseLock();
             } catch (e) {}
-            
-            // 转发远程响应到 WebSocket
             let responseSent = false;
             socket.readable.pipeTo(new WritableStream({
                 write(responseChunk) {
                     if (webSocket.readyState === 1) {
                         if (!responseSent) {
-                            // 第一次响应需要加上头
                             webSocket.send(new Uint8Array([...responseHeader, ...new Uint8Array(responseChunk)]));
                             responseSent = true;
                         } else {
-                            // 后续直接转发
                             webSocket.send(responseChunk);
                         }
                     }

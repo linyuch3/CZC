@@ -124,9 +124,7 @@ app.post('/api/admin/payment/channels/delete', adminRoutes.deletePaymentChannel)
 // 管理员 - 数据导入导出
 app.get('/api/admin/export', adminRoutes.exportData);
 app.post('/api/admin/import', adminRoutes.importData);
-// 反代IP和优选域名管理
-app.get('/api/admin/proxy-ips', adminRoutes.getProxyIPs);
-app.post('/api/admin/proxy-ips', adminRoutes.saveProxyIPs);
+// 优选域名管理
 app.get('/api/admin/best-domains', adminRoutes.getBestDomains);
 app.post('/api/admin/best-domains', adminRoutes.saveBestDomains);
 app.post('/api/admin/fetch-best-ips', adminRoutes.fetchBestIPs);
@@ -137,6 +135,7 @@ app.post('/api/admin/proxyips/add', adminRoutes.addProxyIPs);
 app.post('/api/admin/proxyips/check', adminRoutes.checkProxyIPs);
 app.post('/api/admin/proxyips/delete', adminRoutes.deleteProxyIP);
 app.post('/api/admin/proxyips/clean', adminRoutes.cleanInactiveProxyIPs);
+app.post('/api/admin/proxyips/reorder', adminRoutes.updateProxyIPOrder);
 
 // 用户端 - 获取最佳域名（用于节点状态显示）
 app.get('/api/best-domains', userRoutes.getBestDomains);

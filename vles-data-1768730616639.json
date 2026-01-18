@@ -1,0 +1,1073 @@
+{
+  "users": [
+    {
+      "uuid": "8c4f9a83-ad30-488c-a02e-37cf896ce292",
+      "name": "管理员",
+      "expiry": 4921839226472,
+      "create_at": 1768152826472,
+      "enabled": 1
+    },
+    {
+      "uuid": "df1d33c8-43ba-484f-aa16-a5474ea7cf7a",
+      "name": "管理员",
+      "expiry": 1776441599999,
+      "create_at": 1768124810777,
+      "enabled": 1
+    },
+    {
+      "uuid": "e9cb38b2-0af1-4705-9ef4-e29b150ba853",
+      "name": "666666",
+      "expiry": 1793970060000,
+      "create_at": 1768136464579,
+      "enabled": 1
+    },
+    {
+      "uuid": "e5aade72-ff90-463d-8d98-0d9903885f7f",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763725318325,
+      "enabled": 1
+    },
+    {
+      "uuid": "f035a476-8335-4340-883a-ec6f559cda27",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "eca0646c-1cce-4d17-9c6f-2fa03d73bc8a",
+      "name": "未命名",
+      "expiry": 1798847999999,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "2c755277-00b6-46b1-9fe7-a5150635dfe9",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "e03cdc09-00b3-4e31-98ba-8535d39ef696",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "1a4f72cd-12e7-4fa1-861f-8729973f5e0a",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "3c5918df-43f1-42dd-8f13-725f19c35724",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "e99804af-2aa6-41a9-96c9-2a56370f51c0",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "a235c5c7-6223-4d48-a5ba-e141d76f16c1",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "476d7169-b095-47a1-8569-01d1296d6d3e",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "b5f423ab-8e67-450a-8cd8-d2380be038a5",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "ae7f3a21-71a7-479f-98b7-293136dd91c6",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "6762b7d2-7a15-4be9-82dd-363d04130496",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "bb8aebbb-9333-469b-8b15-ffe7bab716ce",
+      "name": "未命名",
+      "expiry": null,
+      "create_at": 1763727506408,
+      "enabled": 1
+    },
+    {
+      "uuid": "83e44e5c-9ee1-4577-88b1-67bd20dcde23",
+      "name": "666666",
+      "expiry": 1792454399999,
+      "create_at": 1763929030809,
+      "enabled": 1
+    },
+    {
+      "uuid": "d83f8c6e-f0b8-4d25-b3bc-dae0217888f2",
+      "name": "kinghui001",
+      "expiry": 1769608401139,
+      "create_at": 1764078801139,
+      "enabled": 1
+    },
+    {
+      "uuid": "58343483-51aa-422a-9ae5-3e550c074a0f",
+      "name": "123123",
+      "expiry": 1769235120000,
+      "create_at": 1768371159265,
+      "enabled": 1
+    },
+    {
+      "uuid": "e922bf5a-b892-4639-901d-5fddd85df688",
+      "name": "mimimi",
+      "expiry": 1768986836383,
+      "create_at": 1768382036383,
+      "enabled": 1
+    },
+    {
+      "uuid": "a7f9196d-51f3-420c-82b7-7070a39fadde",
+      "name": "wangdefa",
+      "expiry": 1769159849472,
+      "create_at": 1768382249473,
+      "enabled": 1
+    },
+    {
+      "uuid": "fb61b9d1-db55-43fe-9fae-7eb95b3d465a",
+      "name": "honghong",
+      "expiry": 1769073950630,
+      "create_at": 1768382750630,
+      "enabled": 1
+    },
+    {
+      "uuid": "553898b6-8489-4230-ad9f-3e6344cd6d84",
+      "name": "adminuser",
+      "expiry": 1769073957045,
+      "create_at": 1768382757045,
+      "enabled": 1
+    },
+    {
+      "uuid": "425565a5-443e-4956-89fd-b9174c9a2f7e",
+      "name": "chill",
+      "expiry": 1769073982958,
+      "create_at": 1768382782958,
+      "enabled": 1
+    },
+    {
+      "uuid": "a8408827-967e-40dc-922a-96726bab3a6a",
+      "name": "aaa",
+      "expiry": 1769074688847,
+      "create_at": 1768383488847,
+      "enabled": 1
+    },
+    {
+      "uuid": "e0302ce4-2f49-411c-87c6-598c7eda5433",
+      "name": "bba",
+      "expiry": 1768990772697,
+      "create_at": 1768385972697,
+      "enabled": 1
+    },
+    {
+      "uuid": "1aac0e97-1003-497c-80df-932ceef4b874",
+      "name": "Jiaobaba",
+      "expiry": 1769250050434,
+      "create_at": 1768386050434,
+      "enabled": 1
+    },
+    {
+      "uuid": "ea3a3751-751c-4b34-8869-9d5a216b3efe",
+      "name": "Tangs",
+      "expiry": 1769253525357,
+      "create_at": 1768389525357,
+      "enabled": 1
+    },
+    {
+      "uuid": "f514b1e0-61c5-4375-ab18-321141c8179d",
+      "name": "niudog",
+      "expiry": 1769083588079,
+      "create_at": 1768392388079,
+      "enabled": 1
+    },
+    {
+      "uuid": "061dade9-a73f-439e-95bc-d1bb9c5064cf",
+      "name": "gfqqs",
+      "expiry": 1769233294663,
+      "create_at": 1768455694663,
+      "enabled": 1
+    }
+  ],
+  "userAccounts": [
+    {
+      "id": 1,
+      "username": "hailizi",
+      "email": "",
+      "uuid": "8c4f9a83-ad30-488c-a02e-37cf896ce292",
+      "created_at": 1768152826473,
+      "last_login": 1768486846470
+    },
+    {
+      "id": 2,
+      "username": "admin",
+      "email": "",
+      "uuid": "df1d33c8-43ba-484f-aa16-a5474ea7cf7a",
+      "created_at": 1768124810777,
+      "last_login": 1768145988392
+    },
+    {
+      "id": 3,
+      "username": "666666",
+      "email": "",
+      "uuid": "e9cb38b2-0af1-4705-9ef4-e29b150ba853",
+      "created_at": 1768136464580,
+      "last_login": 1768385284552
+    },
+    {
+      "id": 4,
+      "username": "kinghui001",
+      "email": "",
+      "uuid": "d83f8c6e-f0b8-4d25-b3bc-dae0217888f2",
+      "created_at": 1764078801234,
+      "last_login": 1767756950995
+    },
+    {
+      "id": 19,
+      "username": "123123",
+      "email": "",
+      "uuid": "58343483-51aa-422a-9ae5-3e550c074a0f",
+      "created_at": 1768371159266,
+      "last_login": 1768534955526
+    },
+    {
+      "id": 20,
+      "username": "mimimi",
+      "email": "",
+      "uuid": "e922bf5a-b892-4639-901d-5fddd85df688",
+      "created_at": 1768382036384,
+      "last_login": 1768382047248
+    },
+    {
+      "id": 21,
+      "username": "wangdefa",
+      "email": "",
+      "uuid": "a7f9196d-51f3-420c-82b7-7070a39fadde",
+      "created_at": 1768382249473,
+      "last_login": 1768384458247
+    },
+    {
+      "id": 22,
+      "username": "honghong",
+      "email": "",
+      "uuid": "fb61b9d1-db55-43fe-9fae-7eb95b3d465a",
+      "created_at": 1768382750630,
+      "last_login": 1768382755942
+    },
+    {
+      "id": 23,
+      "username": "adminuser",
+      "email": "",
+      "uuid": "553898b6-8489-4230-ad9f-3e6344cd6d84",
+      "created_at": 1768382757045,
+      "last_login": 1768382777624
+    },
+    {
+      "id": 24,
+      "username": "chill",
+      "email": "",
+      "uuid": "425565a5-443e-4956-89fd-b9174c9a2f7e",
+      "created_at": 1768382782958,
+      "last_login": 1768382796552
+    },
+    {
+      "id": 25,
+      "username": "aaa",
+      "email": "",
+      "uuid": "a8408827-967e-40dc-922a-96726bab3a6a",
+      "created_at": 1768383488847,
+      "last_login": 1768383498385
+    },
+    {
+      "id": 26,
+      "username": "bba",
+      "email": "",
+      "uuid": "e0302ce4-2f49-411c-87c6-598c7eda5433",
+      "created_at": 1768385972698,
+      "last_login": 1768385972698
+    },
+    {
+      "id": 27,
+      "username": "Jiaobaba",
+      "email": "",
+      "uuid": "1aac0e97-1003-497c-80df-932ceef4b874",
+      "created_at": 1768386050434,
+      "last_login": 1768633119350
+    },
+    {
+      "id": 28,
+      "username": "Tangs",
+      "email": "",
+      "uuid": "ea3a3751-751c-4b34-8869-9d5a216b3efe",
+      "created_at": 1768389525358,
+      "last_login": 1768450397514
+    },
+    {
+      "id": 29,
+      "username": "niudog",
+      "email": "",
+      "uuid": "f514b1e0-61c5-4375-ab18-321141c8179d",
+      "created_at": 1768392388079,
+      "last_login": 1768392412729
+    },
+    {
+      "id": 31,
+      "username": "gfqqs",
+      "email": "",
+      "uuid": "061dade9-a73f-439e-95bc-d1bb9c5064cf",
+      "created_at": 1768455694664,
+      "last_login": 1768455702812
+    }
+  ],
+  "settings": [
+    {
+      "key": "SYSTEM_SETTINGS_V1",
+      "value": "{\"proxyIPs\":[\"sjc.o00o.ooo:443\",\"ProxyIP.HK.CMLiussss.net\",\"ProxyIP.SG.CMLiussss.net\",\"ProxyIP.JP.CMLiussss.net\",\"ProxyIP.KR.CMLiussss.net\"],\"bestDomains\":[\"cf.twitter.now.cc\",\"telecom.twitter.now.cc\",\"unicom.twitter.now.cc\",\"mobile.twitter.now.cc\",\"v6telecom.twitter.now.cc\",\"v6mobile.twitter.now.cc\",\"125.228.236.138:443#台湾\",\"114.34.106.124:32814#台湾\",\"61.216.171.247:52168#台湾\",\"154.16.10.198:18899#香港\",\"104.16.223.28:443#v4移动 SJC\",\"104.16.111.93:443#v4移动 SJC\",\"104.16.31.156:443#v4移动 SJC\",\"104.16.31.49:443#v4移动 SJC\",\"104.16.111.235:443#v4移动 SJC\",\"104.17.253.163:443#v4联通 SJC\",\"104.18.143.250:443#v4联通 SJC\",\"104.21.237.224:443#v4联通 SJC\",\"104.18.94.63:443#v4联通 SJC\",\"104.17.159.34:443#v4联通 SJC\",\"172.64.150.122:443#v4电信 SIN\",\"104.18.38.84:443#v4电信 SIN\",\"104.18.37.173:443#v4电信 SIN\",\"172.64.159.115:443#v4电信 SIN\",\"104.18.46.111:443#v4电信 SIN\",\"[2606:4700:83bb::66bf:1202]:443#v6移动 MAA\",\"[2606:4700:83b4::74:21fa]:443#v6移动 MAA\",\"[2606:4700:83b9::3a45:3ee9]:443#v6移动 MAA\",\"[2606:4700:83b8::2cfc:6335]:443#v6移动 MAA\",\"[2606:4700:83b4::67ea:163a]:443#v6移动 MAA\",\"[2606:4700:4409::297b:1cee]:443#v6电信 SIN\",\"[2606:4700:4408::6203:5cd0]:443#v6电信 SIN\",\"[2606:4700:964f::6639:5de2]:443#v6电信 SIN\",\"[2606:4700:90cf::c37:95d]:443#v6电信 SIN\",\"[2606:4700:440d::73ab:1d54]:443#v6电信 SIN\"],\"subUrl\":\"ccffllyy.1412.me,5465765525.ccfly.tech,dd.ccfly.tech,a.cfly.de5.net\",\"enableRegister\":true,\"autoApproveOrder\":false,\"autoApproveVersion\":6,\"announcementTitle\":\"系统公告\",\"announcementContent\":\"新用户注册免费试用订阅7天，每日签到可获得1天使用时长奖励\\r\\n代理客户端下载\\r\\nv2rayN(支持Win/ Mac/Linux)下载:https://github.com/2dust/v2rayN/releases\\r\\n\\r\\nClash Verge(支持Win/ Mac/Linux)下载:https://github.com/clash-verge-rev/clash-verge-rev/releases\\r\\n\\r\\nClashMeta(仅支持 Android)下载:https://github.com/MetaCubeX/ClashMetaForAndroid/releases\",\"announcementVersion\":5,\"pendingOrderExpiry\":30,\"paymentOrderExpiry\":15,\"customLink1Name\":\"TG客服\",\"customLink1Url\":\"https://t.me/ikun_cloudbot\",\"customLink2Name\":\"\",\"customLink2Url\":\"\",\"userCheckinRecords\":{\"83e44e5c-9ee1-4577-88b1-67bd20dcde23\":\"2026-01-11\",\"d83f8c6e-f0b8-4d25-b3bc-dae0217888f2\":\"2026-01-07\",\"b5e4e7ca-d9ca-448b-b912-a13ed2106dc2\":\"2025-12-12\",\"6a992f46-2ae2-40bc-8925-5fdd7218b3de\":\"2025-12-03\",\"678c4b1d-4641-4eec-b96d-6352dd3c9cec\":\"2025-12-03\",\"0f652c8f-9aac-46ad-ae1c-417511bf5396\":\"2025-12-07\",\"fb7d1029-078f-402c-ac08-37ac0f8dd774\":\"2025-12-03\",\"1d92af4d-c57a-479b-bef0-2bd548b2479f\":\"2025-12-03\",\"e6677c99-13e3-4788-95a9-1749e847abf0\":\"2025-12-03\",\"a864bfa7-c063-496c-994d-4386e60c6e80\":\"2025-12-03\",\"fbb5c315-5842-41f1-9767-c59381e4c607\":\"2026-01-10\",\"f167ecfa-debc-45b0-a857-40468605335c\":\"2026-01-11\",\"09fd7ac4-2ac7-4f15-ad57-e30f49cde714\":\"2025-12-04\",\"23ea4947-2915-4464-80aa-e292f99d988a\":\"2025-12-04\",\"e0281004-4d28-42b4-87eb-498317246cdc\":\"2025-12-04\",\"1404ebbd-14d4-4493-9c2e-75a9956eef69\":\"2025-12-04\",\"fb1a1ac9-f282-4c65-a68a-b75b77e80278\":\"2025-12-04\",\"08255f85-c629-4544-98b8-83ab4d13abaa\":\"2025-12-05\",\"2655ec6c-b283-41b6-93bc-e2a298211b27\":\"2025-12-04\",\"41c257bd-7337-456d-bc4d-df6d4e1c61f3\":\"2025-12-04\",\"febd80f1-18da-469f-8a75-3a61d47895ce\":\"2025-12-04\",\"2d6cd5a9-297c-4772-a030-cb67d3c702f4\":\"2025-12-04\",\"3f528799-3fc2-4e7b-920a-528153d55c96\":\"2025-12-04\",\"9f8abbf8-e7b2-4ca1-b710-c323720ee9f7\":\"2025-12-04\",\"d04f11d2-fba6-494e-b89e-fbed30df9b96\":\"2025-12-11\",\"9dfccfaf-c6e9-49fd-85ae-d521eba30aa3\":\"2025-12-04\",\"847e6ad4-0298-4dc3-8770-ae2f14915efc\":\"2025-12-04\",\"51f2c1b4-6b71-41ba-be23-860275908602\":\"2025-12-04\",\"8c3dbe13-3854-41bd-bd76-222ea4c16380\":\"2025-12-04\",\"b4cb59b8-1cd0-4374-9dab-df207ab9a35b\":\"2025-12-05\",\"d3d6f81f-d8b0-4bad-a25a-48bc3dc70728\":\"2025-12-05\",\"121e2485-a9b3-44c2-8776-597cf523f126\":\"2025-12-05\",\"5b4573b2-bab1-4db2-babb-75063eda010f\":\"2026-01-11\",\"b8f2ec13-189a-4654-a25b-dd0645122e0b\":\"2025-12-29\",\"e526e4a7-ea9f-4f0a-942c-c782e8736b44\":\"2025-12-05\",\"f641ce00-73a3-47b1-b104-7dd50a1c62bd\":\"2025-12-05\",\"dbbf729c-1474-43e8-9112-91b6a935d02f\":\"2025-12-23\",\"d7ca688c-785d-4489-b508-457cdbbb1d6b\":\"2025-12-05\",\"fe62dda9-38fe-45ca-b397-4bfd710966fe\":\"2025-12-22\",\"60c5438c-8910-40e4-88e6-a6a2da512063\":\"2025-12-05\",\"472127cc-619a-4751-ab2a-a15c911f2bba\":\"2025-12-05\",\"8d23648d-ebe8-40b4-b7fe-3c9dc8c787b4\":\"2025-12-23\",\"b3ec8473-03a5-4afb-8630-6f3ad80779d9\":\"2025-12-17\",\"4c90e0bf-4869-4a36-a926-0f31e9b45e4b\":\"2025-12-05\",\"f2443443-93f5-419d-b726-163e37b28c39\":\"2025-12-16\",\"25147321-9ac1-44d9-9e72-b7df1e296123\":\"2025-12-27\",\"f0c36f00-583b-430c-aac4-ba773a7e4dab\":\"2026-01-11\",\"9764093b-109a-42df-90b0-d2bb422e3d89\":\"2025-12-05\",\"2528687f-8d79-47eb-8b73-628762adf7e1\":\"2025-12-11\",\"b135bef6-8c28-4b2c-867c-04462252dd14\":\"2026-01-07\",\"3ce8cb2f-103e-4130-b547-71fb069e3ac8\":\"2025-12-05\",\"a9b52143-42b3-411d-a510-8b771c8b2def\":\"2026-01-01\",\"c5030a86-a6a0-4733-8ccd-f3d522a4edba\":\"2025-12-05\",\"3cbccdc6-c881-4b87-a598-0ad5c2af0e7a\":\"2025-12-05\",\"93350ac1-d6bd-4afb-b636-dfdbf8ed3528\":\"2025-12-28\",\"f37e2e3c-330e-4695-a8c8-8fe6255288e3\":\"2025-12-11\",\"5d550928-6c0b-47ad-be69-5828e3aae7e0\":\"2025-12-15\",\"f86add4a-a9a3-40d3-b121-6fec28d451a5\":\"2025-12-25\",\"174173b3-75b7-419d-88d1-d0a3323d8587\":\"2025-12-19\",\"fe781149-3963-45c2-b659-d28ccc4ffdfe\":\"2026-01-11\",\"b370475c-7f64-4666-80ce-f6d6ead03cf6\":\"2025-12-29\",\"ab1df209-a27c-443d-9517-b3c1690eb43e\":\"2025-12-24\",\"8b3853f8-28dd-4a14-96c7-880629dc25f4\":\"2026-01-04\",\"791e3d8c-e5a0-419f-a53c-355cb5ff0d36\":\"2025-12-30\",\"78e44b4f-d59a-4584-8e66-66bf3838f81e\":\"2025-12-30\",\"f3baaf5c-a943-4ad2-974d-e40adeef1f16\":\"2025-12-31\",\"5732c128-7d51-458a-979e-33d4a80943cd\":\"2026-01-06\",\"d82ebe21-97dc-403c-b8bc-ed43d1f9754f\":\"2025-12-31\",\"2babe529-0ffa-4384-b3e6-f5aea4160084\":\"2026-01-11\",\"17cf8794-ff34-4f97-b97f-405fd92e721c\":\"2026-01-06\",\"ae368767-49c7-4fb1-a8ab-c215ef17342c\":\"2026-01-07\",\"0be74669-3af3-4e30-91e9-5663ccd19120\":\"2026-01-09\",\"aedaf9be-3800-4f82-9b8d-a29bcd7375ff\":\"2026-01-10\",\"54c4b892-d7b0-4107-a7f1-c2208b65a03f\":\"2026-01-11\",\"9ae6c769-4006-404f-90e0-4fca15b8fa5b\":\"2026-01-11\",\"81b3366b-3a24-4ebb-ab99-1236532dae77\":\"2026-01-11\"},\"subConvertUrl\":\"\",\"subConvertType\":\"subconverter\",\"websiteUrl\":\"https://ccfly.me\",\"siteName\":\"CFly\",\"enableTrial\":true,\"trialDays\":7,\"requireInviteCode\":true,\"enableAutoCleanup\":true,\"autoCleanupDays\":7,\"baseUrl\":\"https://ccfly.me\",\"systemLogs\":[{\"id\":\"1768148784883\",\"timestamp\":\"2026-01-11T16:26:24.883Z\",\"action\":\"数据导出\",\"details\":\"导出全部数据\",\"level\":\"info\"},{\"id\":\"1768148675787\",\"timestamp\":\"2026-01-11T16:24:35.787Z\",\"action\":\"数据导出\",\"details\":\"导出全部数据\",\"level\":\"info\"}],\"lastCronSyncTime\":1768730400526,\"apiToken\":\"d232d32c885e21177f0fec6dd3b5ea0f112b7cff5ea7ade75b55767f414a324d\"}"
+    }
+  ],
+  "plans": [
+    {
+      "id": 1,
+      "name": "免费体验",
+      "description": "✔无限流量\n✔不限设备数量\n✔解锁主流 AI 服务\n✔内置三网定时优选IP",
+      "duration_days": 7,
+      "price": 0,
+      "enabled": 1,
+      "created_at": 1768126425154,
+      "sort_order": 1
+    },
+    {
+      "id": 2,
+      "name": "CFly月度套餐",
+      "description": "✔无限流量\n✔不限设备数量\n✔解锁主流 AI 服务\n✔内置三网定时优选IP",
+      "duration_days": 31,
+      "price": 2,
+      "enabled": 1,
+      "created_at": 1768126425154,
+      "sort_order": 2
+    },
+    {
+      "id": 3,
+      "name": "CFly季度度套餐",
+      "description": "✔无限流量\n✔不限设备数量\n✔解锁主流 AI 服务\n✔内置三网定时优选IP",
+      "duration_days": 90,
+      "price": 5,
+      "enabled": 1,
+      "created_at": 1768298378864,
+      "sort_order": 3
+    },
+    {
+      "id": 5,
+      "name": "CFly年度套餐",
+      "description": "✔无限流量\n✔不限设备数量\n✔解锁主流 AI 服务\n✔内置三网定时优选IP",
+      "duration_days": 365,
+      "price": 18,
+      "enabled": 1,
+      "created_at": 1768299003932,
+      "sort_order": 5
+    }
+  ],
+  "orders": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "plan_id": 1,
+      "amount": 19.9,
+      "status": "approved",
+      "created_at": 1768126444693,
+      "paid_at": 1768139724079,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914C5PH7OV4"
+    },
+    {
+      "id": 2,
+      "user_id": 1,
+      "plan_id": 2,
+      "amount": 49.9,
+      "status": "approved",
+      "created_at": 1768126444694,
+      "paid_at": 1768139721649,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914ZC311D6T"
+    },
+    {
+      "id": 3,
+      "user_id": 2,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "approved",
+      "created_at": 1768146100489,
+      "paid_at": 1768146177418,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914ZV7TH13Q"
+    },
+    {
+      "id": 4,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768146184591,
+      "paid_at": 1768146768939,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914G03JLAAH"
+    },
+    {
+      "id": 5,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768146773748,
+      "paid_at": 1768146903373,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD17683707229142FBODAUU"
+    },
+    {
+      "id": 6,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768146912637,
+      "paid_at": 1768146917781,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914Q2NO15RE"
+    },
+    {
+      "id": 7,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768146921585,
+      "paid_at": 1768146945321,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD17683707229145U6ABI9G"
+    },
+    {
+      "id": 8,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768146949008,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914SNQZ0ATF"
+    },
+    {
+      "id": 9,
+      "user_id": 2,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "rejected",
+      "created_at": 1768147162870,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914G2AZU6GM"
+    },
+    {
+      "id": 10,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "approved",
+      "created_at": 1768147167925,
+      "paid_at": 1768147312468,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914RAH5ERXS"
+    },
+    {
+      "id": 11,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768147337769,
+      "paid_at": 1768148223414,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722914BS9AJ0JL"
+    },
+    {
+      "id": 12,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768147343319,
+      "paid_at": 1768148220393,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915JIZ1KS92"
+    },
+    {
+      "id": 13,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768147480661,
+      "paid_at": 1768148221403,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915UM3GKD4T"
+    },
+    {
+      "id": 14,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "rejected",
+      "created_at": 1768147555436,
+      "paid_at": 1768148217941,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915EVM969O9"
+    },
+    {
+      "id": 15,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "rejected",
+      "created_at": 1768148079095,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915IDFLOBP6"
+    },
+    {
+      "id": 16,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "approved",
+      "created_at": 1768148282622,
+      "paid_at": 1768148315725,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915QL9FXAUG"
+    },
+    {
+      "id": 17,
+      "user_id": 2,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "rejected",
+      "created_at": 1768148343045,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD17683707229153W3FT5JK"
+    },
+    {
+      "id": 18,
+      "user_id": 2,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "rejected",
+      "created_at": 1768148365419,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915V189KXSJ"
+    },
+    {
+      "id": 19,
+      "user_id": 1,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "expired",
+      "created_at": 1768157464721,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915A80189OW"
+    },
+    {
+      "id": 20,
+      "user_id": 3,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "rejected",
+      "created_at": 1768157921507,
+      "paid_at": 1768186892430,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915L6A3G5UD"
+    },
+    {
+      "id": 21,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "expired",
+      "created_at": 1768290293925,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD176837072291583RZA2RM"
+    },
+    {
+      "id": 22,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "approved",
+      "created_at": 1768290425549,
+      "paid_at": 1768290433908,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915Z599XIGS"
+    },
+    {
+      "id": 23,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "approved",
+      "created_at": 1768290731196,
+      "paid_at": 1768290744379,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915DE23K9IE"
+    },
+    {
+      "id": 24,
+      "user_id": 3,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "approved",
+      "created_at": 1768297872911,
+      "paid_at": 1768297931083,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915KLKMMAUI"
+    },
+    {
+      "id": 25,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "approved",
+      "created_at": 1768298003151,
+      "paid_at": 1768298033883,
+      "payment_order_id": "ORDER_25",
+      "payment_trade_id": "wXSvwB84adVKgfMwcz",
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915PNL7XLDM"
+    },
+    {
+      "id": 26,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 0.1,
+      "status": "expired",
+      "created_at": 1768298055253,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD176837072291539JHGBII"
+    },
+    {
+      "id": 27,
+      "user_id": 3,
+      "plan_id": 3,
+      "amount": 2,
+      "status": "approved",
+      "created_at": 1768298393766,
+      "paid_at": 1768298660997,
+      "payment_order_id": "ORDER_27",
+      "payment_trade_id": "lyT6Ggxid8YEwzeozY",
+      "payment_type": "manual",
+      "order_no": "ORD1768370722915HAW8VHXQ"
+    },
+    {
+      "id": 28,
+      "user_id": 3,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "rejected",
+      "created_at": 1768351838737,
+      "paid_at": 1768351862787,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD17683707229150U55XZPH"
+    },
+    {
+      "id": 29,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768351866993,
+      "paid_at": 1768351929628,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722916QV6Y4HZG"
+    },
+    {
+      "id": 30,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768351935463,
+      "paid_at": 1768351962811,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD17683707229167TN4SMUC"
+    },
+    {
+      "id": 31,
+      "user_id": 3,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "approved",
+      "created_at": 1768352974503,
+      "paid_at": 1768352974504,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722916WB6RJT75"
+    },
+    {
+      "id": 32,
+      "user_id": 3,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "expired",
+      "created_at": 1768352978852,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722916I4C6T16H"
+    },
+    {
+      "id": 33,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "expired",
+      "created_at": 1768362991352,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD17683707229160T21CJGZ"
+    },
+    {
+      "id": 34,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "expired",
+      "created_at": 1768367822317,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722916BALSWW0E"
+    },
+    {
+      "id": 35,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "expired",
+      "created_at": 1768368983510,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD176837072291649RG7UR3"
+    },
+    {
+      "id": 36,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "expired",
+      "created_at": 1768369117282,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768370722916ZLT6SRUW"
+    },
+    {
+      "id": 37,
+      "user_id": 3,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "approved",
+      "created_at": 1768370731655,
+      "paid_at": 1768370750890,
+      "payment_order_id": "ORD1768370731655RN9GAH28",
+      "payment_trade_id": "JwklFmoWGxul8fWvqu",
+      "payment_type": "manual",
+      "order_no": "ORD1768370731655RN9GAH28"
+    },
+    {
+      "id": 38,
+      "user_id": 19,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "approved",
+      "created_at": 1768371185798,
+      "paid_at": 1768371707605,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768371185798DRI26DWL"
+    },
+    {
+      "id": 39,
+      "user_id": 21,
+      "plan_id": 3,
+      "amount": 5,
+      "status": "expired",
+      "created_at": 1768382302652,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768382302652YVZM6QGK"
+    },
+    {
+      "id": 40,
+      "user_id": 21,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "expired",
+      "created_at": 1768382319437,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768382319437NFRPM9TV"
+    },
+    {
+      "id": 41,
+      "user_id": 21,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "expired",
+      "created_at": 1768382709597,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD176838270959780C2OTSE"
+    },
+    {
+      "id": 42,
+      "user_id": 24,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "expired",
+      "created_at": 1768382836188,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768382836188FYZ8QCDO"
+    },
+    {
+      "id": 43,
+      "user_id": 23,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "expired",
+      "created_at": 1768382953850,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768382953850CYV6F3X5"
+    },
+    {
+      "id": 44,
+      "user_id": 25,
+      "plan_id": 2,
+      "amount": 2,
+      "status": "rejected",
+      "created_at": 1768383549015,
+      "paid_at": 1768383568035,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD1768383549015MJKW7C6O"
+    },
+    {
+      "id": 45,
+      "user_id": 24,
+      "plan_id": 1,
+      "amount": 0,
+      "status": "expired",
+      "created_at": 1768383862807,
+      "paid_at": null,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD17683838628073CJAGXDA"
+    },
+    {
+      "id": 46,
+      "user_id": 21,
+      "plan_id": 3,
+      "amount": 5,
+      "status": "rejected",
+      "created_at": 1768626266216,
+      "paid_at": 1768626277596,
+      "payment_order_id": null,
+      "payment_trade_id": null,
+      "payment_type": "manual",
+      "order_no": "ORD176862626621683FNUEUZ"
+    }
+  ],
+  "announcements": [
+    {
+      "id": 4,
+      "title": "用户须知",
+      "content": "新用户注册免费试用7天订阅,每日签到可获得1天使用时长奖励！如果订阅地址域名被墙就重新复制订阅获取新域名。\n\n代理软件下载\nClash Verge(支持Win/Mac/Linux)下载:https://github.com/clash-verge-rev/clash-verge-rev/releases\n\nv2rayN(支持Win/Mac/Linux)下载:https://github.com/2dust/v2rayN/releases\n\nClash Meta(仅支持Android)下载:https://github.com/MetaCubeX/ClashMetaForAndroid/releases",
+      "enabled": 1,
+      "created_at": 1768148647588,
+      "updated_at": 1768378862304
+    }
+  ],
+  "inviteCodes": [
+    {
+      "id": 5,
+      "code": "CFly",
+      "max_uses": 10,
+      "used_count": 10,
+      "trial_days": 0,
+      "remark": "",
+      "enabled": 1,
+      "created_at": 1768371831811
+    },
+    {
+      "id": 7,
+      "code": "ZW5OYV6K",
+      "max_uses": 1,
+      "used_count": 1,
+      "trial_days": 0,
+      "remark": "",
+      "enabled": 1,
+      "created_at": 1768455056774
+    }
+  ],
+  "paymentChannels": [
+    {
+      "id": 3,
+      "name": "USDT-Polygon",
+      "code": "usdt.polygon",
+      "api_url": "https://bepusdt.1412.me",
+      "api_token": "nHWk0rohOkbcrFwlhZQIZRCmJ7eGKxiV5GSHrOosXVnShzPQ",
+      "enabled": 1,
+      "created_at": 1764605090254,
+      "callback_url": "https://ccfly.me"
+    },
+    {
+      "id": 4,
+      "name": "USDT-TRC20",
+      "code": "usdt.trc20",
+      "api_url": "https://bepusdt.1412.me",
+      "api_token": "nHWk0rohOkbcrFwlhZQIZRCmJ7eGKxiV5GSHrOosXVnShzPQ",
+      "enabled": 1,
+      "created_at": 1764607645357,
+      "callback_url": "https://ccfly.me"
+    },
+    {
+      "id": 5,
+      "name": "Arbitrum-One",
+      "code": "usdt.arbitrum",
+      "api_url": "https://bepusdt.1412.me",
+      "api_token": "nHWk0rohOkbcrFwlhZQIZRCmJ7eGKxiV5GSHrOosXVnShzPQ",
+      "enabled": 1,
+      "created_at": 1764607667924,
+      "callback_url": "https://ccfly.me"
+    },
+    {
+      "id": 6,
+      "name": "Solana",
+      "code": "usdt.solana",
+      "api_url": "https://bepusdt.1412.me",
+      "api_token": "nHWk0rohOkbcrFwlhZQIZRCmJ7eGKxiV5GSHrOosXVnShzPQ",
+      "enabled": 1,
+      "created_at": 1764607685483,
+      "callback_url": "https://ccfly.me"
+    }
+  ]
+}
