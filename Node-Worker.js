@@ -1,6 +1,6 @@
 import { connect } from 'cloudflare:sockets';
 
-const REMOTE_API_URL = 'https://laughing-space-capybara-97x9444q969v3pqjr-3000.app.github.dev/api/users';
+const REMOTE_API_URL = 'https://musical-capybara-jjg5www454493p4g7-3000.app.github.dev/api/users';
 const API_TOKEN = 'd232d32c885e21177f0fec6dd3b5ea0f112b7cff5ea7ade75b55767f414a324d';
 const FALLBACK_CONFIG = {
     proxyIPs: ['ProxyIP.SG.CMLiussss.net'],
@@ -302,7 +302,7 @@ function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
     const domains = cachedData.settings.bestDomains || FALLBACK_CONFIG.bestDomains;
     
     function formatExpiry(timestamp) {
-        if (!timestamp) return '未激活';
+        if (!timestamp) return 'Not-Activated';
         const d = new Date(timestamp);
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -345,12 +345,12 @@ function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
         path: wsPath
     });
     
-    const websiteDisplay = websiteUrl ? websiteUrl.replace(/^https?:\/\//, '') : '未设置官网';
-    const websiteLink = `${protocol}://${uuid}@${firstAddress}?${commonParams.toString()}#${encodeURIComponent('官网' + websiteDisplay)}`;
+    const websiteDisplay = websiteUrl ? websiteUrl.replace(/^https?:\/\//, '') : 'Not-Set';
+    const websiteLink = `${protocol}://${uuid}@${firstAddress}?${commonParams.toString()}#${encodeURIComponent('Website-' + websiteDisplay)}`;
     links.push(websiteLink);
     
     const expiryDisplay = formatExpiry(expiry);
-    const expiryLink = `${protocol}://${uuid}@${firstAddress}?${commonParams.toString()}#${encodeURIComponent('套餐到期：' + expiryDisplay)}`;
+    const expiryLink = `${protocol}://${uuid}@${firstAddress}?${commonParams.toString()}#${encodeURIComponent('Expire-' + expiryDisplay)}`;
     links.push(expiryLink);
     
     const sortedDomains = [...domains].sort((a, b) => {
