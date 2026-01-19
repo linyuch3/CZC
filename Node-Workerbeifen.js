@@ -299,7 +299,7 @@ function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
     
     // 格式化到期时间
     function formatExpiry(timestamp) {
-        if (!timestamp) return '未激活';
+        if (!timestamp) return 'Not-Activated';
         const d = new Date(timestamp);
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -348,13 +348,13 @@ function generateVlessLinks(workerDomain, uuid, userName, expiry, websiteUrl) {
     });
     
     // 添加官网信息节点（排第一）
-    const websiteDisplay = websiteUrl ? websiteUrl.replace(/^https?:\/\//, '') : '未设置官网';
-    const websiteLink = `${protocol}://${uuid}@${firstAddress}?${commonParams.toString()}#${encodeURIComponent('官网' + websiteDisplay)}`;
+    const websiteDisplay = websiteUrl ? websiteUrl.replace(/^https?:\/\//, '') : 'Not-Set';
+    const websiteLink = `${protocol}://${uuid}@${firstAddress}?${commonParams.toString()}#${encodeURIComponent('Website-' + websiteDisplay)}`;
     links.push(websiteLink);
     
     // 添加套餐到期时间节点（排第二）
     const expiryDisplay = formatExpiry(expiry);
-    const expiryLink = `${protocol}://${uuid}@${firstAddress}?${commonParams.toString()}#${encodeURIComponent('套餐到期：' + expiryDisplay)}`;
+    const expiryLink = `${protocol}://${uuid}@${firstAddress}?${commonParams.toString()}#${encodeURIComponent('Expire-' + expiryDisplay)}`;
     links.push(expiryLink);
     
     // 排序: 只将 IPv6 IP 地址排到后面，手动添加的域名保持原位

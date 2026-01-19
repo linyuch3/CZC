@@ -2851,9 +2851,13 @@ function renderAdminPanel() {
         const imported = localStorage.getItem('proxyIPsImported');
         if (imported === 'true') return;
         
-        // 获取旧的ProxyIP列表
+        // 获取旧的ProxyIP列表（尝试从旧API导入，如果不存在则跳过）
         const response = await fetch('/api/admin/proxy-ips');
-        if (!response.ok) return;
+        if (!response.ok) {
+          // 旧API不存在，标记为已导入避免重复尝试
+          localStorage.setItem('proxyIPsImported', 'true');
+          return;
+        }
         
         const data = await response.json();
         const legacyIPs = data.proxyIPs || [];
@@ -2904,7 +2908,9 @@ function renderAdminPanel() {
         localStorage.setItem('proxyIPsImported', 'true');
         
       } catch (error) {
-        console.error('导入旧ProxyIP失败:', error);
+        // 旧API不存在或导入失败，标记为已导入避免重复尝试
+        localStorage.setItem('proxyIPsImported', 'true');
+        // 不输出错误信息，因为这是可选的兼容性功能
       }
     }
     
@@ -2985,13 +2991,13 @@ function renderAdminPanel() {
         const timeAgo = proxy.last_check_at ? formatTimeAgo(proxy.last_check_at) : '-';
         const responseTime = proxy.response_time ? proxy.response_time + ' ms' : '-';
         
-        html += '<tr draggable="true" data-proxy-id="' + proxy.id + '" class="hover:bg-slate-50 dark:hover:bg-zinc-900/50 cursor-move transition-colors">' +
+        html += '<tr data-proxy-id="' + proxy.id + '" class="hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition-colors">' +
           '<td class="px-4 py-3">' +
-            '<span class="material-symbols-outlined text-slate-400 dark:text-zinc-600 text-[18px]">drag_indicator</span>' +
+            '<span class="drag-handle material-symbols-outlined text-slate-400 dark:text-zinc-600 text-[18px] cursor-move" title="拖动排序">drag_indicator</span>' +
           '</td>' +
           '<td class="px-4 py-3">' +
-            '<code class="text-xs font-mono">' + proxy.address + (proxy.port !== 443 ? ':' + proxy.port : '') + '</code>' +
-            (proxy.isp ? '<br><span class="text-xs text-slate-500 dark:text-zinc-500">' + proxy.isp + '</span>' : '') +
+            '<code class="text-xs font-mono select-text">' + proxy.address + (proxy.port !== 443 ? ':' + proxy.port : '') + '</code>' +
+            (proxy.isp ? '<br><span class="text-xs text-slate-500 dark:text-zinc-500 select-text">' + proxy.isp + '</span>' : '') +
           '</td>' +
           '<td class="px-4 py-3">' + regionBadge + '</td>' +
           '<td class="px-4 py-3">' + statusBadge + '</td>' +
@@ -3187,13 +3193,13 @@ function renderAdminPanel() {
         const response = await fetch('/api/admin/proxyips/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
+          body: JSON.stringify({ checkAll: true }) // 明确要求检测所有IP
         });
         
         const result = await response.json();
         
         if (result.success) {
-          showAlert('检测任务已启动，正在自动检测中...', 'success');
+          showAlert('检测任务已启动，正在检测 ' + result.checking + ' 个 ProxyIP...', 'success');
           // 启动轮询，实时更新表格
           startCheckingPolling();
         } else {
@@ -3280,17 +3286,34 @@ function renderAdminPanel() {
     
     function initProxyIPDragAndDrop() {
       const tbody = document.getElementById('proxyip-table-body');
-      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const rows = tbody.querySelectorAll('tr[data-proxy-id]');
       
       rows.forEach(row => {
-        row.addEventListener('dragstart', handleProxyDragStart);
-        row.addEventListener('dragover', handleProxyDragOver);
-        row.addEventListener('drop', handleProxyDrop);
-        row.addEventListener('dragend', handleProxyDragEnd);
+        const dragHandle = row.querySelector('.drag-handle');
+        if (dragHandle) {
+          dragHandle.addEventListener('mousedown', (e) => {
+            row.setAttribute('draggable', 'true');
+          });
+          
+          row.addEventListener('dragstart', handleProxyDragStart);
+          row.addEventListener('dragover', handleProxyDragOver);
+          row.addEventListener('drop', handleProxyDrop);
+          row.addEventListener('dragend', (e) => {
+            handleProxyDragEnd(e);
+            row.removeAttribute('draggable');
+          });
+        }
       });
     }
     
     function handleProxyDragStart(e) {
+      // 只有从拖动手柄开始的拖动才生效
+      const dragHandle = e.target.closest('.drag-handle');
+      if (!dragHandle) {
+        e.preventDefault();
+        return;
+      }
+      
       draggedProxyRow = e.target.closest('tr');
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/html', draggedProxyRow.innerHTML);
@@ -3302,9 +3325,9 @@ function renderAdminPanel() {
       e.dataTransfer.dropEffect = 'move';
       
       const targetRow = e.target.closest('tr');
-      if (targetRow && targetRow !== draggedProxyRow && targetRow.hasAttribute('draggable')) {
+      if (targetRow && targetRow !== draggedProxyRow && targetRow.hasAttribute('data-proxy-id')) {
         const tbody = targetRow.parentNode;
-        const allRows = [...tbody.querySelectorAll('tr[draggable="true"]')];
+        const allRows = [...tbody.querySelectorAll('tr[data-proxy-id]')];
         const draggedIndex = allRows.indexOf(draggedProxyRow);
         const targetIndex = allRows.indexOf(targetRow);
         
@@ -3327,7 +3350,7 @@ function renderAdminPanel() {
       
       // 获取新的排序
       const tbody = document.getElementById('proxyip-table-body');
-      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const rows = tbody.querySelectorAll('tr[data-proxy-id]');
       const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
       
       // 保存到服务器
@@ -3356,7 +3379,7 @@ function renderAdminPanel() {
     
     async function moveProxyIPToTop(proxyId) {
       const tbody = document.getElementById('proxyip-table-body');
-      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const rows = tbody.querySelectorAll('tr[data-proxy-id]');
       const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
       
       const currentIndex = orderedIds.indexOf(proxyId);
@@ -3371,7 +3394,7 @@ function renderAdminPanel() {
     
     async function moveProxyIPUp(proxyId) {
       const tbody = document.getElementById('proxyip-table-body');
-      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const rows = tbody.querySelectorAll('tr[data-proxy-id]');
       const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
       
       const currentIndex = orderedIds.indexOf(proxyId);
@@ -3385,7 +3408,7 @@ function renderAdminPanel() {
     
     async function moveProxyIPDown(proxyId) {
       const tbody = document.getElementById('proxyip-table-body');
-      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const rows = tbody.querySelectorAll('tr[data-proxy-id]');
       const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
       
       const currentIndex = orderedIds.indexOf(proxyId);
@@ -3399,7 +3422,7 @@ function renderAdminPanel() {
     
     async function moveProxyIPToBottom(proxyId) {
       const tbody = document.getElementById('proxyip-table-body');
-      const rows = tbody.querySelectorAll('tr[draggable="true"]');
+      const rows = tbody.querySelectorAll('tr[data-proxy-id]');
       const orderedIds = Array.from(rows).map(row => parseInt(row.getAttribute('data-proxy-id')));
       
       const currentIndex = orderedIds.indexOf(proxyId);
@@ -5750,6 +5773,7 @@ function renderAdminPanel() {
               'Announcements: ' + (stats.announcements || 0) + '\\n' +
               'Invite Codes: ' + (stats.inviteCodes || 0) + '\\n' +
               'Payment Channels: ' + (stats.paymentChannels || 0) + '\\n' +
+              'ProxyIPs: ' + (stats.proxyIPs || 0) + '\\n' +
               'Settings: ' + (stats.settings || 0)
             );
             // 刷新页面以显示最新数据
