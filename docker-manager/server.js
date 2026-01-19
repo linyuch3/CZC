@@ -246,64 +246,88 @@ cron.schedule('*/15 * * * *', async () => {
         // 清理过期会话
         db.cleanExpiredSessions();
         
-        // 自动检测 ProxyIP（每次检测 pending 和少量失败的 IP）
+        // 自动检测 ProxyIP（每次检测所有 IP）
         try {
             const checker = require('./proxyip-checker');
             const allProxies = db.getAllProxyIPsWithMeta();
             
-            // 优先检测 pending 状态，然后是失败次数较少的
-            const pendingProxies = allProxies.filter(p => p.status === 'pending' || (p.status === 'failed' && p.fail_count < 3));
+            console.log(`[定时检查ProxyIP] 总计 ${allProxies.length} 个，开始全部检测`);
             
-            if (pendingProxies.length > 0) {
-                console.log(`[定时任务] 开始检测 ${pendingProxies.length} 个 ProxyIP...`);
-                
-                // 每次最多检测 20 个，避免耗时过长
-                const toCheck = pendingProxies.slice(0, 20);
+            if (allProxies.length > 0) {
+                // 分批检测，每批 10 个，避免并发过高
+                const batchSize = 10;
+                console.log(`[定时检查ProxyIP] 将分 ${Math.ceil(allProxies.length / batchSize)} 批检测`);
                 
                 // 异步检测，不阻塞主流程
                 setImmediate(async () => {
                     try {
-                        const results = await checker.batchCheckProxyIPs(toCheck.map(p => ({ address: p.address, port: p.port })));
-                        
                         let activeCount = 0;
                         let failedCount = 0;
                         
-                        results.forEach(result => {
-                            if (result.success) {
-                                db.updateProxyIPStatus(result.address, result.port, {
-                                    status: result.status,
-                                    responseTime: result.responseTime,
-                                    region: result.region,
-                                    country: result.country,
-                                    isp: result.isp,
-                                    city: result.city,
-                                    latitude: result.latitude,
-                                    longitude: result.longitude
-                                });
-                                if (result.status === 'active') activeCount++;
-                            } else {
-                                db.updateProxyIPStatus(result.address, result.port, {
-                                    status: 'failed'
-                                });
-                                failedCount++;
-                            }
+                        // 创建 address:port -> id 的映射
+                        const addressToId = {};
+                        allProxies.forEach(p => {
+                            const key = `${p.address}:${p.port}`;
+                            addressToId[key] = p.id;
                         });
                         
-                        console.log(`[定时任务] ProxyIP 检测完成: 成功 ${activeCount} 个, 失败 ${failedCount} 个`);
+                        // 分批处理
+                        for (let i = 0; i < allProxies.length; i += batchSize) {
+                            const batch = allProxies.slice(i, i + batchSize);
+                            const results = await checker.batchCheckProxyIPs(batch.map(p => ({ address: p.address, port: p.port })));
+                            
+                            results.forEach(result => {
+                                const key = `${result.address}:${result.port || 443}`;
+                                const proxyId = addressToId[key];
+                                
+                                if (!proxyId) {
+                                    console.error(`[定时检查ProxyIP] 找不到 ${key} 的 ID`);
+                                    return;
+                                }
+                                
+                                if (result.success) {
+                                    db.updateProxyIPStatus(proxyId, {
+                                        status: result.status,
+                                        responseTime: result.responseTime,
+                                        region: result.region,
+                                        country: result.country,
+                                        isp: result.isp,
+                                        city: result.city,
+                                        latitude: result.latitude,
+                                        longitude: result.longitude
+                                    });
+                                    if (result.status === 'active') activeCount++;
+                                } else {
+                                    db.updateProxyIPStatus(proxyId, {
+                                        status: 'failed'
+                                    });
+                                    failedCount++;
+                                }
+                            });
+                            
+                            // 批次间短暂延迟，避免过载
+                            if (i + batchSize < allProxies.length) {
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                            }
+                        }
                         
-                        // 清理失败次数超过 5 次的 IP
-                        const cleanedCount = db.cleanInactiveProxyIPs(5);
+                        console.log(`[定时检查ProxyIP] 检测完成: 活跃 ${activeCount} 个, 失败 ${failedCount} 个`);
+                        
+                        // 清理失败次数 >= 2 的 IP
+                        const cleanedCount = db.cleanInactiveProxyIPs(2);
                         if (cleanedCount > 0) {
-                            console.log(`[定时任务] 已清理 ${cleanedCount} 个失效 ProxyIP`);
+                            console.log(`[定时检查ProxyIP] 已清理 ${cleanedCount} 个失效 ProxyIP（失败≥2次）`);
                         }
                         
                     } catch (error) {
-                        console.error('[定时任务] ProxyIP 检测失败:', error.message);
+                        console.error('[定时检查ProxyIP] 检测失败:', error.message);
                     }
                 });
+            } else {
+                console.log(`[定时检查ProxyIP] 无 ProxyIP 需要检测`);
             }
         } catch (error) {
-            console.error('[定时任务] ProxyIP 检测模块加载失败:', error.message);
+            console.error('[定时检查ProxyIP] 模块加载失败:', error.message);
         }
         
     } catch (error) {
@@ -381,10 +405,10 @@ async function updateBestIPs() {
         settings.bestDomains = [...manualDomains, ...newAutoDomains];
         db.saveSettings(settings);
         
-        console.log(`[定时任务] 更新完成: 手动 ${manualDomains.length} 条, 自动 ${newAutoDomains.length} 条`);
+        console.log(`[定时获取优选IP] 更新完成: 手动 ${manualDomains.length} 条, 自动 ${newAutoDomains.length} 条`);
         
     } catch (error) {
-        console.error('[定时任务] 更新优选IP失败:', error.message);
+        console.error('[定时获取优选IP] 更新失败:', error.message);
         // ⚠️ 关键修复：发生错误时不修改数据，避免清空
     }
 }

@@ -1096,7 +1096,8 @@ function exportData(req, res) {
                 totalOrders: data.orders.length,
                 totalAnnouncements: data.announcements.length,
                 totalInviteCodes: data.inviteCodes.length,
-                totalPaymentChannels: data.paymentChannels.length
+                totalPaymentChannels: data.paymentChannels.length,
+                totalProxyIPs: data.proxyIPs.length
             }
         });
     } catch (e) {
@@ -1134,7 +1135,8 @@ function importData(req, res) {
             orders: 0,
             announcements: 0,
             inviteCodes: 0,
-            paymentChannels: 0
+            paymentChannels: 0,
+            proxyIPs: 0
         };
 
         // 1. 导入 settings
@@ -1265,6 +1267,42 @@ function importData(req, res) {
                     console.error('导入支付通道失败:', channel.name, e.message);
                 }
             }
+        }
+
+        // 9. 导入 proxy_ips
+        if (data.proxyIPs && data.proxyIPs.length > 0) {
+            console.log(`[导入] 开始导入 ${data.proxyIPs.length} 个 ProxyIP...`);
+            for (const proxy of data.proxyIPs) {
+                try {
+                    database.prepare(
+                        "INSERT OR REPLACE INTO proxy_ips (id, address, port, status, region, country, isp, city, latitude, longitude, response_time, last_check_at, success_count, fail_count, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    ).run(
+                        proxy.id, 
+                        proxy.address, 
+                        proxy.port || 443, 
+                        proxy.status || 'pending', 
+                        proxy.region, 
+                        proxy.country, 
+                        proxy.isp, 
+                        proxy.city, 
+                        proxy.latitude, 
+                        proxy.longitude, 
+                        proxy.response_time, 
+                        proxy.last_check_at, 
+                        proxy.success_count || 0, 
+                        proxy.fail_count || 0, 
+                        proxy.sort_order || 0, 
+                        proxy.created_at, 
+                        proxy.updated_at
+                    );
+                    importedCounts.proxyIPs++;
+                } catch (e) {
+                    console.error('导入 ProxyIP 失败:', proxy.address, e.message);
+                }
+            }
+            console.log(`[导入] ProxyIP 导入完成: ${importedCounts.proxyIPs}/${data.proxyIPs.length}`);
+        } else {
+            console.log('[导入] 备份文件中没有 ProxyIP 数据');
         }
 
         res.json({ 
@@ -1452,6 +1490,56 @@ async function addProxyIPs(req, res) {
             }
         }
         
+        // 立即检测新添加的 IP
+        const addedIPs = results.filter(r => r.status === 'added');
+        if (addedIPs.length > 0) {
+            console.log(`[添加ProxyIP] 立即检测 ${addedIPs.length} 个新IP`);
+            
+            // 异步检测，不阻塞响应
+            setImmediate(async () => {
+                try {
+                    const checker = require('../proxyip-checker');
+                    const checkResults = await checker.batchCheckProxyIPs(addedIPs);
+                    
+                    // 获取所有 ProxyIP 来查找 ID
+                    const allProxies = db.getAllProxyIPsWithMeta();
+                    const addressToId = {};
+                    allProxies.forEach(p => {
+                        const key = `${p.address}:${p.port}`;
+                        addressToId[key] = p.id;
+                    });
+                    
+                    checkResults.forEach(result => {
+                        const key = `${result.address}:${result.port || 443}`;
+                        const proxyId = addressToId[key];
+                        
+                        if (proxyId) {
+                            if (result.success) {
+                                db.updateProxyIPStatus(proxyId, {
+                                    status: result.status,
+                                    responseTime: result.responseTime,
+                                    region: result.region,
+                                    country: result.country,
+                                    isp: result.isp,
+                                    city: result.city,
+                                    latitude: result.latitude,
+                                    longitude: result.longitude
+                                });
+                            } else {
+                                db.updateProxyIPStatus(proxyId, {
+                                    status: 'failed'
+                                });
+                            }
+                        }
+                    });
+                    
+                    console.log(`[添加ProxyIP] 检测完成`);
+                } catch (error) {
+                    console.error('[添加ProxyIP] 检测失败:', error.message);
+                }
+            });
+        }
+        
         res.json({ 
             success: true, 
             results,
@@ -1470,21 +1558,28 @@ async function addProxyIPs(req, res) {
 // 检测 ProxyIP
 async function checkProxyIPs(req, res) {
     try {
-        const { ids } = req.body; // 要检测的 ProxyIP ID数组，如果为空则检测所有pending状态的
+        const { ids, checkAll } = req.body; // checkAll: 是否检测所有IP
         
         const checker = require('../proxyip-checker');
         let proxyList;
         
         if (ids && ids.length > 0) {
-            // 检测指定的 ProxyIP
+            // 检测指定的 ProxyIP（通过 address:port 查找）
             const allProxies = db.getAllProxyIPsWithMeta();
-            proxyList = allProxies.filter(p => ids.includes(p.id));
+            proxyList = allProxies.filter(p => {
+                const key = `${p.address}:${p.port}`;
+                return ids.includes(key);
+            });
+        } else if (checkAll) {
+            // 检测所有 ProxyIP
+            proxyList = db.getAllProxyIPsWithMeta();
+            console.log(`[手动检测] 检测所有 ${proxyList.length} 个 ProxyIP`);
         } else {
-            // 检测所有 pending 或失败次数少的
+            // 默认：只检测 pending 或失败次数少的
             const allProxies = db.getAllProxyIPsWithMeta();
             proxyList = allProxies.filter(p => 
                 p.status === 'pending' || 
-                (p.status === 'failed' && p.fail_count < 3)
+                (p.status === 'failed' && p.fail_count < 2)
             );
         }
         
@@ -1496,33 +1591,54 @@ async function checkProxyIPs(req, res) {
         setImmediate(async () => {
             console.log(`🔍 开始检测 ${proxyList.length} 个 ProxyIP...`);
             
-            for (const proxy of proxyList) {
-                try {
-                    const result = await checker.checkProxyIP(proxy.address, proxy.port);
-                    
-                    db.updateProxyIPStatus(proxy.id, {
-                        status: result.success ? 'active' : 'failed',
-                        region: result.region,
-                        country: result.country,
-                        isp: result.isp,
-                        city: result.city,
-                        latitude: result.latitude,
-                        longitude: result.longitude,
-                        responseTime: result.responseTime
-                    });
-                    
-                    console.log(`${result.success ? '✅' : '❌'} ${proxy.address}:${proxy.port} - ${result.success ? result.responseTime + 'ms' : result.error}`);
-                    
-                } catch (e) {
-                    console.error(`检测失败 ${proxy.address}:${proxy.port}:`, e.message);
-                    db.updateProxyIPStatus(proxy.id, {
-                        status: 'failed',
-                        responseTime: -1
-                    });
+            let successCount = 0;
+            let failedCount = 0;
+            
+            // 分批检测，每批 5 个
+            const batchSize = 5;
+            for (let i = 0; i < proxyList.length; i += batchSize) {
+                const batch = proxyList.slice(i, i + batchSize);
+                
+                await Promise.all(batch.map(async (proxy) => {
+                    try {
+                        const result = await checker.checkProxyIP(proxy.address, proxy.port);
+                        
+                        db.updateProxyIPStatus(proxy.id, {
+                            status: result.success ? 'active' : 'failed',
+                            region: result.region,
+                            country: result.country,
+                            isp: result.isp,
+                            city: result.city,
+                            latitude: result.latitude,
+                            longitude: result.longitude,
+                            responseTime: result.responseTime
+                        });
+                        
+                        if (result.success) {
+                            successCount++;
+                            console.log(`✅ ${proxy.address}:${proxy.port} - ${result.responseTime}ms`);
+                        } else {
+                            failedCount++;
+                            console.log(`❌ ${proxy.address}:${proxy.port} - ${result.error}`);
+                        }
+                        
+                    } catch (e) {
+                        failedCount++;
+                        console.error(`检测失败 ${proxy.address}:${proxy.port}:`, e.message);
+                        db.updateProxyIPStatus(proxy.id, {
+                            status: 'failed',
+                            responseTime: -1
+                        });
+                    }
+                }));
+                
+                // 批次间延迟
+                if (i + batchSize < proxyList.length) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
             }
             
-            console.log(`✅ ProxyIP 检测完成`);
+            console.log(`✅ ProxyIP 检测完成: 成功 ${successCount} 个, 失败 ${failedCount} 个`);
         });
         
         res.json({ 
@@ -1676,7 +1792,8 @@ function importAllData(req, res) {
             orders: 0,
             announcements: 0,
             inviteCodes: 0,
-            paymentChannels: 0
+            paymentChannels: 0,
+            proxyIPs: 0
         };
 
         // 1. 导入 settings
@@ -1799,7 +1916,43 @@ function importAllData(req, res) {
             }
         }
 
-        db.addLog('数据导入', `成功导入 ${importedCounts.users} 用户, ${importedCounts.userAccounts} 账号, ${importedCounts.plans} 套餐, ${importedCounts.orders} 订单`, 'info');
+        // 9. 导入 proxy_ips
+        if (data.proxyIPs && Array.isArray(data.proxyIPs) && data.proxyIPs.length > 0) {
+            console.log(`[导入] 开始导入 ${data.proxyIPs.length} 个 ProxyIP...`);
+            for (const proxy of data.proxyIPs) {
+                try {
+                    database.prepare(
+                        "INSERT OR REPLACE INTO proxy_ips (id, address, port, status, region, country, isp, city, latitude, longitude, response_time, last_check_at, success_count, fail_count, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    ).run(
+                        proxy.id, 
+                        proxy.address, 
+                        proxy.port || 443, 
+                        proxy.status || 'pending', 
+                        proxy.region, 
+                        proxy.country, 
+                        proxy.isp, 
+                        proxy.city, 
+                        proxy.latitude, 
+                        proxy.longitude, 
+                        proxy.response_time, 
+                        proxy.last_check_at, 
+                        proxy.success_count || 0, 
+                        proxy.fail_count || 0, 
+                        proxy.sort_order || 0, 
+                        proxy.created_at, 
+                        proxy.updated_at
+                    );
+                    importedCounts.proxyIPs++;
+                } catch (e) {
+                    console.error('导入 ProxyIP 失败:', proxy.address, e.message);
+                }
+            }
+            console.log(`[导入] ProxyIP 导入完成: ${importedCounts.proxyIPs}/${data.proxyIPs.length}`);
+        } else {
+            console.log('[导入] 备份文件中没有 ProxyIP 数据');
+        }
+
+        db.addLog('数据导入', `成功导入 ${importedCounts.users} 用户, ${importedCounts.userAccounts} 账号, ${importedCounts.plans} 套餐, ${importedCounts.orders} 订单, ${importedCounts.proxyIPs} ProxyIP`, 'info');
         res.json({ 
             success: true, 
             message: '数据导入完成',

@@ -140,6 +140,7 @@ function initDatabase() {
             last_check_at INTEGER,
             fail_count INTEGER DEFAULT 0,
             success_count INTEGER DEFAULT 0,
+            sort_order INTEGER DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
             UNIQUE(address, port)
@@ -148,6 +149,7 @@ function initDatabase() {
         CREATE INDEX IF NOT EXISTS idx_proxy_ips_status ON proxy_ips(status);
         CREATE INDEX IF NOT EXISTS idx_proxy_ips_region ON proxy_ips(region);
         CREATE INDEX IF NOT EXISTS idx_proxy_ips_response_time ON proxy_ips(response_time);
+        CREATE INDEX IF NOT EXISTS idx_proxy_ips_sort_order ON proxy_ips(sort_order);
     `);
     
     // 数据库迁移：检查并添加缺失的字段
@@ -1294,7 +1296,8 @@ function exportAllData() {
         orders: getDb().prepare("SELECT * FROM orders").all(),
         announcements: getDb().prepare("SELECT * FROM announcements").all(),
         inviteCodes: getDb().prepare("SELECT * FROM invite_codes").all(),
-        paymentChannels: getDb().prepare("SELECT * FROM payment_channels").all()
+        paymentChannels: getDb().prepare("SELECT * FROM payment_channels").all(),
+        proxyIPs: getDb().prepare("SELECT * FROM proxy_ips").all()
     };
 }
 
