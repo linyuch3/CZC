@@ -528,6 +528,32 @@ function renderAdminPanel() {
         display: none;
       }
     }
+    /* 拖拽排序样式 */
+    .draggable-row {
+      transition: all 0.2s ease;
+    }
+    .draggable-row.dragging {
+      opacity: 0.5;
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .dark .draggable-row.dragging {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .draggable-row.drag-over {
+      border-top: 2px solid #0f172a;
+      background: rgba(15, 23, 42, 0.05);
+    }
+    .dark .draggable-row.drag-over {
+      border-top: 2px solid #f8fafc;
+      background: rgba(248, 250, 252, 0.05);
+    }
+    .drag-handle {
+      opacity: 0.4;
+      transition: opacity 0.2s ease;
+    }
+    .draggable-row:hover .drag-handle {
+      opacity: 1;
+    }
   </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark text-slate-950 dark:text-slate-50 transition-colors duration-200">
@@ -1238,7 +1264,7 @@ function renderAdminPanel() {
             <div class="w-full">
               <div class="flex justify-between items-end mb-4">
                 <div class="inline-flex h-10 items-center justify-center rounded-md bg-slate-100 dark:bg-zinc-900 p-1 text-slate-500 dark:text-zinc-400">
-                  <button id="tab-domain-list" class="tab-trigger active inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50" onclick="switchBestDomainsTab('domain-list')">域名列表</button>
+                  <button id="tab-domain-list" class="tab-trigger active inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50" onclick="switchBestDomainsTab('domain-list')">节点列表</button>
                   <button id="tab-node-status" class="tab-trigger inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50" onclick="switchBestDomainsTab('node-status')">节点状态</button>
                 </div>
                 <div id="batch-actions-bar" class="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-md px-3 py-1.5 shadow-sm transition-all opacity-0 pointer-events-none">
@@ -1255,7 +1281,7 @@ function renderAdminPanel() {
                 </div>
               </div>
               
-              <!-- 域名列表视图 -->
+              <!-- 节点列表视图 -->
               <div id="tab-content-domain-list" class="tab-content active bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-sm overflow-hidden">
                 <div class="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-800/30 flex justify-between items-center">
                   <span class="text-xs font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">当前优选域名</span>
@@ -1265,7 +1291,11 @@ function renderAdminPanel() {
                   <table class="w-full text-left text-sm">
                     <thead class="bg-slate-50/30 dark:bg-zinc-900">
                       <tr class="border-b border-slate-100 dark:border-zinc-800">
-                        <th class="px-4 py-3 w-10">
+                        <th class="px-3 py-3 w-10">
+                          <span class="material-symbols-outlined text-[16px] text-slate-400 dark:text-zinc-600">drag_indicator</span>
+                        </th>
+                        <th class="px-2 py-3 w-12 font-medium text-slate-500 dark:text-zinc-400 text-center">序号</th>
+                        <th class="px-2 py-3 w-10">
                           <input type="checkbox" id="select-all" onclick="toggleSelectAll()" class="rounded border-slate-300 dark:border-zinc-700 text-primary focus:ring-primary w-4 h-4"/>
                         </th>
                         <th class="px-4 py-3 font-medium text-slate-500 dark:text-zinc-400">资源地址</th>
@@ -1315,19 +1345,11 @@ function renderAdminPanel() {
               </div>
             </div>
             
-            <!-- 底部操作 -->
-            <div class="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-zinc-800">
+            <!-- 底部提示 -->
+            <div class="pt-4 border-t border-slate-200 dark:border-zinc-800">
               <p class="text-xs text-slate-500 dark:text-zinc-500">
                 提示: 点击列表条目前方的拖拽手柄可手动排序。所有数据自动从 Cloudflare 边缘节点同步。
               </p>
-              <div class="flex gap-3">
-                <button onclick="loadBestDomains()" class="px-4 py-2 text-sm font-medium border border-slate-200 dark:border-zinc-800 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
-                  重置更改
-                </button>
-                <button onclick="saveAllBestDomains()" class="px-6 py-2 bg-primary dark:bg-white text-white dark:text-black text-sm font-semibold rounded-md hover:opacity-90 shadow-sm transition-opacity">
-                  保存并应用
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -5277,7 +5299,7 @@ function renderAdminPanel() {
       document.getElementById('best-domains-count').textContent = '共 ' + currentBestDomains.length + ' 个条目';
       
       if (currentBestDomains.length === 0) {
-        listContainer.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400 dark:text-zinc-600"><span class="material-symbols-outlined text-4xl mb-2 block">cloud_off</span><p class="text-sm">暂无优选域名</p></td></tr>';
+        listContainer.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400 dark:text-zinc-600"><span class="material-symbols-outlined text-4xl mb-2 block">cloud_off</span><p class="text-sm">暂无优选域名</p></td></tr>';
         return;
       }
       
@@ -5323,8 +5345,27 @@ function renderAdminPanel() {
         const statusText = enabled ? '运行中' : '已关闭';
         const switchActive = enabled ? 'true' : 'false';
         
-        html += '<tr class="group hover:bg-slate-50/50 dark:hover:bg-zinc-800/20 transition-colors">' +
-          '<td class="px-4 py-3"><input type="checkbox" class="domain-check rounded border-slate-300 dark:border-zinc-700 text-primary focus:ring-primary w-4 h-4" data-index="' + index + '" onchange="updateBatchActionsBar()"/></td>' +
+        html += '<tr class="group hover:bg-slate-50/50 dark:hover:bg-zinc-800/20 transition-colors draggable-row" draggable="true" data-index="' + index + '">' +
+          '<td class="px-3 py-3 cursor-grab active:cursor-grabbing drag-handle">' +
+            '<div class="flex items-center justify-center gap-0.5">' +
+              '<div class="flex flex-col gap-0.5">' +
+                '<div class="flex gap-0.5">' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                '</div>' +
+                '<div class="flex gap-0.5">' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                '</div>' +
+                '<div class="flex gap-0.5">' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</td>' +
+          '<td class="px-2 py-3 text-center"><span class="text-sm font-medium text-slate-500 dark:text-zinc-400">' + (index + 1) + '</span></td>' +
+          '<td class="px-2 py-3"><input type="checkbox" class="domain-check rounded border-slate-300 dark:border-zinc-700 text-primary focus:ring-primary w-4 h-4" data-index="' + index + '" onchange="updateBatchActionsBar()"/></td>' +
           '<td class="px-4 py-3"><div class="font-mono text-slate-700 dark:text-zinc-300">' + address + '</div>' +
           (alias ? '<div class="text-[11px] text-slate-500 dark:text-zinc-500 mt-0.5">' + alias + '</div>' : '') +
           '</td>' +
@@ -5354,14 +5395,32 @@ function renderAdminPanel() {
         '</tr>';
       });
       listContainer.innerHTML = html;
+      
+      // 绑定拖拽事件
+      attachDragEvents();
     }
     
     // 拖拽排序功能
     let draggedIndex = null;
+    let draggedElement = null;
+    
+    function attachDragEvents() {
+      const rows = document.querySelectorAll('#best-domains-list .draggable-row');
+      rows.forEach(row => {
+        row.addEventListener('dragstart', handleDragStart);
+        row.addEventListener('dragover', handleDragOver);
+        row.addEventListener('drop', handleDrop);
+        row.addEventListener('dragend', handleDragEnd);
+        row.addEventListener('dragenter', handleDragEnter);
+        row.addEventListener('dragleave', handleDragLeave);
+      });
+    }
     
     function handleDragStart(e) {
       draggedIndex = parseInt(e.currentTarget.getAttribute('data-index'));
-      e.currentTarget.style.opacity = '0.4';
+      draggedElement = e.currentTarget;
+      e.currentTarget.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
     }
     
     function handleDragOver(e) {
@@ -5372,10 +5431,23 @@ function renderAdminPanel() {
       return false;
     }
     
+    function handleDragEnter(e) {
+      if (e.currentTarget !== draggedElement) {
+        e.currentTarget.classList.add('drag-over');
+      }
+    }
+    
+    function handleDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+    
     function handleDrop(e) {
       if (e.stopPropagation) {
         e.stopPropagation();
       }
+      e.preventDefault();
+      
+      e.currentTarget.classList.remove('drag-over');
       
       const dropIndex = parseInt(e.currentTarget.getAttribute('data-index'));
       
@@ -5391,8 +5463,13 @@ function renderAdminPanel() {
     }
     
     function handleDragEnd(e) {
-      e.currentTarget.style.opacity = '1';
+      e.currentTarget.classList.remove('dragging');
+      // 清除所有可能残留的drag-over类
+      document.querySelectorAll('.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
       draggedIndex = null;
+      draggedElement = null;
     }
     
     function batchAddBestDomains() {
