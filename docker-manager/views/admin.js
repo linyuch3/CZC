@@ -396,6 +396,54 @@ function renderAdminPanel() {
       background: #09090b;
       color: #fafafa;
     }
+    /* Shadcn UI 开关样式 */
+    .switch-btn {
+      position: relative;
+      display: inline-flex;
+      height: 1.5rem; /* 24px */
+      width: 2.75rem; /* 44px */
+      align-items: center;
+      border-radius: 9999px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .switch-btn:focus-visible {
+      outline: none;
+      ring: 2px;
+      ring-color: #a1a1aa;
+      ring-offset: 2px;
+    }
+    .dark .switch-btn:focus-visible {
+      ring-offset-color: #09090b;
+    }
+    /* 开关背景 - 关闭状态 */
+    .switch-btn[data-active="false"] {
+      background-color: #f4f4f5; /* zinc-100 */
+      border-color: #e4e4e7; /* zinc-200 */
+    }
+    .dark .switch-btn[data-active="false"] {
+      background-color: #27272a; /* zinc-800 */
+      border-color: #3f3f46; /* zinc-700 */
+    }
+    /* 开关背景 - 开启状态 */
+    .switch-btn[data-active="true"] {
+      background-color: #000000; /* primary black */
+    }
+    /* 滑块 */
+    .switch-slider {
+      display: inline-block;
+      height: 1rem; /* 16px */
+      width: 1rem; /* 16px */
+      transform: translateX(0);
+      border-radius: 9999px;
+      background-color: #ffffff;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s ease-in-out;
+    }
+    .switch-btn[data-active="true"] .switch-slider {
+      transform: translateX(1.25rem); /* 20px */
+    }
     /* Shadcn 风格开关 */
     .switch-shadcn {
       position: relative;
@@ -479,6 +527,32 @@ function renderAdminPanel() {
       .hide-mobile {
         display: none;
       }
+    }
+    /* 拖拽排序样式 */
+    .draggable-row {
+      transition: all 0.2s ease;
+    }
+    .draggable-row.dragging {
+      opacity: 0.5;
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .dark .draggable-row.dragging {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .draggable-row.drag-over {
+      border-top: 2px solid #0f172a;
+      background: rgba(15, 23, 42, 0.05);
+    }
+    .dark .draggable-row.drag-over {
+      border-top: 2px solid #f8fafc;
+      background: rgba(248, 250, 252, 0.05);
+    }
+    .drag-handle {
+      opacity: 0.4;
+      transition: opacity 0.2s ease;
+    }
+    .draggable-row:hover .drag-handle {
+      opacity: 1;
     }
   </style>
 </head>
@@ -597,12 +671,12 @@ function renderAdminPanel() {
         
         <a onclick="switchSection('proxy-ips')" class="nav-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer">
           <span class="material-symbols-outlined">language</span>
-          <span>反代 IP</span>
+          <span>ProxyIP管理</span>
         </a>
         
         <a onclick="switchSection('best-domains')" class="nav-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer">
           <span class="material-symbols-outlined">star</span>
-          <span>优选域名</span>
+          <span>节点管理</span>
         </a>
         
         <div class="pt-6 pb-2">
@@ -705,9 +779,6 @@ function renderAdminPanel() {
           <section>
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">系统设置</h2>
-              <button onclick="saveSystemSettings()" class="px-4 py-2 bg-primary text-white dark:bg-slate-100 dark:text-slate-950 text-sm font-medium rounded-md hover:opacity-90 transition-opacity">
-                保存更改
-              </button>
             </div>
 
             <div class="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
@@ -854,7 +925,7 @@ function renderAdminPanel() {
               </div>
 
               <!-- API 密钥设置 -->
-              <div class="p-6">
+              <div class="p-6 border-b border-slate-100 dark:border-slate-800">
                 <div class="flex flex-col gap-1 mb-4">
                   <div class="flex items-center gap-2">
                     <span class="material-symbols-outlined text-slate-400">key</span>
@@ -865,6 +936,44 @@ function renderAdminPanel() {
                 <div class="flex items-center gap-2 max-w-2xl">
                   <input id="input-apiToken" class="flex-1 px-3 py-2 bg-transparent border border-slate-200 dark:border-slate-800 rounded-md text-sm font-mono" type="text" placeholder="留空表示不启用密钥验证"/>
                   <button onclick="generateApiToken()" class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-sm font-medium rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap">生成密钥</button>
+                </div>
+              </div>
+
+              <!-- Turnstile 人机验证设置 -->
+              <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                      <span class="material-symbols-outlined text-slate-400">shield</span>
+                      <label class="text-sm font-semibold">Turnstile 人机验证</label>
+                    </div>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">配置 Cloudflare Turnstile 防止恶意注册，在 <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Cloudflare Dashboard</a> 获取密钥</p>
+                  </div>
+                  <label class="switch-shadcn">
+                    <input id="input-enableTurnstile" type="checkbox"/>
+                    <span class="slider-shadcn"></span>
+                  </label>
+                </div>
+                <div class="space-y-4 max-w-2xl">
+                  <div>
+                    <label class="text-xs text-slate-400 mb-1 block">Site Key (前端密钥)</label>
+                    <input id="input-turnstileSiteKey" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-slate-800 rounded-md text-sm font-mono" type="text" placeholder="1x00000000000000000000AA"/>
+                  </div>
+                  <div>
+                    <label class="text-xs text-slate-400 mb-1 block">Secret Key (后端密钥)</label>
+                    <input id="input-turnstileSecretKey" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-slate-800 rounded-md text-sm font-mono" type="text" placeholder="1x0000000000000000000000000000000AA"/>
+                  </div>
+                  <div class="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-md">
+                    <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 text-base mt-0.5">info</span>
+                    <div class="flex-1">
+                      <p class="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
+                        <strong>开关启用后</strong>，用户注册时需要完成人机验证。关闭则不启用验证功能。
+                      </p>
+                      <p class="text-xs text-blue-600 dark:text-blue-500 mt-1">
+                        获取密钥：<a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" class="underline hover:text-blue-800 dark:hover:text-blue-300">Cloudflare Turnstile</a>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1017,9 +1126,6 @@ function renderAdminPanel() {
             <section class="space-y-6">
               <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold tracking-tight">订阅设置</h2>
-                <button onclick="saveAllProxyIPSettings()" class="px-4 py-2 bg-primary text-white dark:bg-slate-100 dark:text-slate-950 text-sm font-medium rounded-md hover:opacity-90 transition-opacity">
-                  保存设置
-                </button>
               </div>
               <div class="grid gap-6">
                 <div class="space-y-2">
@@ -1188,12 +1294,26 @@ function renderAdminPanel() {
             
             <!-- 标签切换 -->
             <div class="w-full">
-              <div class="inline-flex h-10 items-center justify-center rounded-md bg-slate-100 dark:bg-zinc-900 p-1 text-slate-500 dark:text-zinc-400 mb-4">
-                <button id="tab-domain-list" class="tab-trigger active inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50" onclick="switchBestDomainsTab('domain-list')">域名列表</button>
-                <button id="tab-node-status" class="tab-trigger inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50" onclick="switchBestDomainsTab('node-status')">节点状态</button>
+              <div class="flex justify-between items-end mb-4">
+                <div class="inline-flex h-10 items-center justify-center rounded-md bg-slate-100 dark:bg-zinc-900 p-1 text-slate-500 dark:text-zinc-400">
+                  <button id="tab-domain-list" class="tab-trigger active inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50" onclick="switchBestDomainsTab('domain-list')">节点列表</button>
+                  <button id="tab-node-status" class="tab-trigger inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50" onclick="switchBestDomainsTab('node-status')">节点状态</button>
+                </div>
+                <div id="batch-actions-bar" class="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-md px-3 py-1.5 shadow-sm transition-all opacity-0 pointer-events-none">
+                  <span class="text-xs text-slate-500 dark:text-zinc-400 mr-2">已选择 <span id="selected-count">0</span> 项</span>
+                  <button onclick="batchEnableDomains()" class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-primary text-white rounded hover:opacity-90 transition-opacity">
+                    <span class="material-symbols-outlined text-[14px]">play_arrow</span> 批量启用
+                  </button>
+                  <button onclick="batchDisableDomains()" class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border border-slate-200 dark:border-zinc-800 rounded hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[14px]">stop</span> 批量禁用
+                  </button>
+                  <button onclick="batchDeleteDomains()" class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-red-600 border border-red-100 hover:bg-red-50 rounded transition-colors">
+                    <span class="material-symbols-outlined text-[14px]">delete</span> 批量删除
+                  </button>
+                </div>
               </div>
               
-              <!-- 域名列表视图 -->
+              <!-- 节点列表视图 -->
               <div id="tab-content-domain-list" class="tab-content active bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-sm overflow-hidden">
                 <div class="px-4 py-3 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-800/30 flex justify-between items-center">
                   <span class="text-xs font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">当前优选域名</span>
@@ -1202,11 +1322,18 @@ function renderAdminPanel() {
                 <div class="overflow-x-auto">
                   <table class="w-full text-left text-sm">
                     <thead class="bg-slate-50/30 dark:bg-zinc-900">
-                      <tr>
-                        <th class="px-4 py-2 font-medium text-slate-500 dark:text-zinc-400 w-10"></th>
-                        <th class="px-4 py-2 font-medium text-slate-500 dark:text-zinc-400">资源地址</th>
-                        <th class="px-4 py-2 font-medium text-slate-500 dark:text-zinc-400">状态</th>
-                        <th class="px-4 py-2 font-medium text-slate-500 dark:text-zinc-400 text-right">操作</th>
+                      <tr class="border-b border-slate-100 dark:border-zinc-800">
+                        <th class="px-3 py-3 w-10">
+                          <span class="material-symbols-outlined text-[16px] text-slate-400 dark:text-zinc-600">drag_indicator</span>
+                        </th>
+                        <th class="px-2 py-3 w-12 font-medium text-slate-500 dark:text-zinc-400 text-center">序号</th>
+                        <th class="px-2 py-3 w-10">
+                          <input type="checkbox" id="select-all" onclick="toggleSelectAll()" class="rounded border-slate-300 dark:border-zinc-700 text-primary focus:ring-primary w-4 h-4"/>
+                        </th>
+                        <th class="px-4 py-3 font-medium text-slate-500 dark:text-zinc-400">资源地址</th>
+                        <th class="px-4 py-3 font-medium text-slate-500 dark:text-zinc-400">节点状态</th>
+                        <th class="px-4 py-3 font-medium text-slate-500 dark:text-zinc-400 text-center">开启/关闭</th>
+                        <th class="px-4 py-3 font-medium text-slate-500 dark:text-zinc-400 text-right">操作</th>
                       </tr>
                     </thead>
                     <tbody id="best-domains-list" class="divide-y divide-slate-100 dark:divide-zinc-800">
@@ -1250,19 +1377,11 @@ function renderAdminPanel() {
               </div>
             </div>
             
-            <!-- 底部操作 -->
-            <div class="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-zinc-800">
+            <!-- 底部提示 -->
+            <div class="pt-4 border-t border-slate-200 dark:border-zinc-800">
               <p class="text-xs text-slate-500 dark:text-zinc-500">
                 提示: 点击列表条目前方的拖拽手柄可手动排序。所有数据自动从 Cloudflare 边缘节点同步。
               </p>
-              <div class="flex gap-3">
-                <button onclick="loadBestDomains()" class="px-4 py-2 text-sm font-medium border border-slate-200 dark:border-zinc-800 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">
-                  重置更改
-                </button>
-                <button onclick="saveAllBestDomains()" class="px-6 py-2 bg-primary dark:bg-white text-white dark:text-black text-sm font-semibold rounded-md hover:opacity-90 shadow-sm transition-opacity">
-                  保存并应用
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -1580,8 +1699,8 @@ function renderAdminPanel() {
       const titles = {
         'dashboard': '仪表盘概览',
         'users': '用户管理',
-        'proxy-ips': '反代 IP 管理',
-        'best-domains': '优选域名管理',
+        'proxy-ips': 'ProxyIP管理',
+        'best-domains': '节点管理',
         'plans': '套餐管理',
         'orders': '订单管理',
         'announcements': '公告管理',
@@ -2812,11 +2931,49 @@ function renderAdminPanel() {
           const settings = settingsData.settings;
           document.getElementById('sub-url').value = settings.subUrl || '';
           document.getElementById('website-url').value = settings.websiteUrl || '';
+          
+          // 添加实时保存监听器
+          setupProxyIPSettingsAutoSave();
         }
       } catch (error) {
         console.error('加载订阅设置失败:', error);
         showAlert('加载失败: ' + error.message, 'error');
       }
+    }
+    
+    // 设置 ProxyIP 订阅设置的自动保存监听器
+    function setupProxyIPSettingsAutoSave() {
+      let saveTimeout;
+      
+      const autoSaveSettings = async () => {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(async () => {
+          try {
+            const subUrl = document.getElementById('sub-url').value.trim();
+            const websiteUrl = document.getElementById('website-url').value.trim();
+            
+            const settingsResponse = await fetch('/api/admin/saveSettings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ subUrl, websiteUrl })
+            });
+            
+            const settingsResult = await settingsResponse.json();
+            if (settingsResult.success) {
+              showToast('✅ 订阅设置已保存');
+            }
+          } catch (error) {
+            console.error('自动保存失败:', error);
+          }
+        }, 1000); // 1秒防抖
+      };
+      
+      // 为输入框添加监听
+      const subUrlInput = document.getElementById('sub-url');
+      const websiteUrlInput = document.getElementById('website-url');
+      
+      if (subUrlInput) subUrlInput.addEventListener('input', autoSaveSettings);
+      if (websiteUrlInput) websiteUrlInput.addEventListener('input', autoSaveSettings);
     }
     
     async function saveAllProxyIPSettings() {
@@ -5160,6 +5317,24 @@ function renderAdminPanel() {
         let domains = data.bestDomains || [];
         const lastCronSyncTime = data.lastCronSyncTime || Date.now();
         
+        // 解析禁用状态：将___DISABLED___前缀转换为对象格式
+        domains = domains.map(domain => {
+          if (typeof domain === 'string' && domain.startsWith('___DISABLED___')) {
+            return {
+              address: domain.substring('___DISABLED___'.length), // 移除___DISABLED___前缀（15个字符）
+              enabled: false
+            };
+          } else if (typeof domain === 'string') {
+            // 字符串格式，默认为启用状态
+            return {
+              address: domain,
+              enabled: true
+            };
+          }
+          // 已经是对象格式，直接返回
+          return domain;
+        });
+        
         // 计算距离下次执行的剩余秒数
         const elapsed = Math.floor((Date.now() - lastCronSyncTime) / 1000);
         const interval = 15 * 60; // 15分钟
@@ -5168,8 +5343,12 @@ function renderAdminPanel() {
         
         // 排序：IPv4在前，IPv6在后
         domains.sort((a, b) => {
-          const isIPv6A = a.includes('[');
-          const isIPv6B = b.includes('[');
+          // 获取地址字符串（支持对象和字符串格式）
+          const addrA = typeof a === 'string' ? a : a.address;
+          const addrB = typeof b === 'string' ? b : b.address;
+          
+          const isIPv6A = addrA.includes('[');
+          const isIPv6B = addrB.includes('[');
           
           if (isIPv6A && !isIPv6B) return 1;  // IPv6排后
           if (!isIPv6A && isIPv6B) return -1; // IPv4排前
@@ -5190,54 +5369,128 @@ function renderAdminPanel() {
       document.getElementById('best-domains-count').textContent = '共 ' + currentBestDomains.length + ' 个条目';
       
       if (currentBestDomains.length === 0) {
-        listContainer.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400 dark:text-zinc-600"><span class="material-symbols-outlined text-4xl mb-2 block">cloud_off</span><p class="text-sm">暂无优选域名</p></td></tr>';
+        listContainer.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400 dark:text-zinc-600"><span class="material-symbols-outlined text-4xl mb-2 block">cloud_off</span><p class="text-sm">暂无优选域名</p></td></tr>';
         return;
       }
       
       let html = '';
-      currentBestDomains.forEach((domain, index) => {
-        // 检测IP类型和标签
-        const isIPv6 = domain.includes('[');
-        const typeClass = isIPv6 ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+      currentBestDomains.forEach((domainObj, index) => {
+        // 支持对象格式和字符串格式
+        const domain = typeof domainObj === 'string' ? domainObj : domainObj.address;
+        const enabled = typeof domainObj === 'string' ? true : (domainObj.enabled !== false);
+        
+        // 解析域名：address#alias
+        const parts = domain.split('#');
+        const address = parts[0] || domain;
+        const alias = parts[1] || '';
+        
+        // 检测IP类型
+        const isIPv6 = address.includes('[');
         const typeText = isIPv6 ? 'IPv6' : 'IPv4';
         
-        // 提取标签（#后的内容）
-        let label = '';
-        if (domain.includes('#')) {
-          label = domain.split('#')[1] || '';
+        // 提取IP和端口
+        let ip = address;
+        let port = '443';
+        if (address.includes(':')) {
+          const addrParts = address.split(':');
+          if (isIPv6) {
+            // IPv6: [xxx]:port
+            if (address.endsWith(']')) {
+              ip = address;
+            } else {
+              const lastColon = address.lastIndexOf(':');
+              ip = address.substring(0, lastColon);
+              port = address.substring(lastColon + 1);
+            }
+          } else {
+            // IPv4: xxx.xxx.xxx.xxx:port
+            ip = addrParts[0];
+            port = addrParts[1] || '443';
+          }
         }
         
-        html += '<tr class="group hover:bg-slate-50/50 dark:hover:bg-zinc-800/20 transition-colors" draggable="true" data-index="' + index + '" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragend="handleDragEnd(event)">' +
-          '<td class="px-4 py-3"><span class="material-symbols-outlined text-slate-300 dark:text-zinc-600 text-[18px] cursor-move">drag_indicator</span></td>' +
-          '<td class="px-4 py-3">' +
-            '<div class="flex items-center gap-2">' +
-              '<span class="px-2 py-0.5 text-[11px] font-medium rounded ' + typeClass + '">' + typeText + '</span>' +
-              '<span class="font-mono text-slate-700 dark:text-zinc-300">' + domain + '</span>' +
+        // Shadcn UI 风格的状态显示
+        const statusDotClass = enabled ? 'bg-black dark:bg-zinc-100' : 'bg-zinc-300 dark:bg-zinc-700';
+        const statusTextClass = enabled ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-400 dark:text-zinc-500';
+        const statusText = enabled ? '运行中' : '已关闭';
+        const switchActive = enabled ? 'true' : 'false';
+        
+        html += '<tr class="group hover:bg-slate-50/50 dark:hover:bg-zinc-800/20 transition-colors draggable-row" draggable="true" data-index="' + index + '">' +
+          '<td class="px-3 py-3 cursor-grab active:cursor-grabbing drag-handle">' +
+            '<div class="flex items-center justify-center gap-0.5">' +
+              '<div class="flex flex-col gap-0.5">' +
+                '<div class="flex gap-0.5">' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                '</div>' +
+                '<div class="flex gap-0.5">' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                '</div>' +
+                '<div class="flex gap-0.5">' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                  '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700"></span>' +
+                '</div>' +
+              '</div>' +
             '</div>' +
-            (label ? '<div class="mt-1 text-xs text-slate-500 dark:text-zinc-500">📍 ' + label + '</div>' : '') +
+          '</td>' +
+          '<td class="px-2 py-3 text-center"><span class="text-sm font-medium text-slate-500 dark:text-zinc-400">' + (index + 1) + '</span></td>' +
+          '<td class="px-2 py-3"><input type="checkbox" class="domain-check rounded border-slate-300 dark:border-zinc-700 text-primary focus:ring-primary w-4 h-4" data-index="' + index + '" onchange="updateBatchActionsBar()"/></td>' +
+          '<td class="px-4 py-3"><div class="font-mono text-slate-700 dark:text-zinc-300">' + address + '</div>' +
+          (alias ? '<div class="text-[11px] text-slate-500 dark:text-zinc-500 mt-0.5">' + alias + '</div>' : '') +
           '</td>' +
           '<td class="px-4 py-3">' +
-            '<div class="flex items-center gap-1.5">' +
-              '<span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>' +
-              '<span class="text-xs text-slate-500 dark:text-zinc-500">在线</span>' +
+            '<div class="flex items-center gap-3">' +
+              '<span class="w-2 h-2 rounded-full ' + statusDotClass + ' transition-colors"></span>' +
+              '<span class="text-sm font-medium ' + statusTextClass + ' transition-colors">' + statusText + '</span>' +
+            '</div>' +
+          '</td>' +
+          '<td class="px-4 py-3">' +
+            '<div class="flex justify-center">' +
+              '<button class="switch-btn" data-active="' + switchActive + '" data-index="' + index + '" onclick="toggleDomainStatusShadcn(' + index + ')">' +
+                '<span class="switch-slider"></span>' +
+              '</button>' +
             '</div>' +
           '</td>' +
           '<td class="px-4 py-3 text-right">' +
-            '<button onclick="deleteBestDomain(' + index + ')" class="text-slate-400 hover:text-red-500 transition-colors">' +
-              '<span class="material-symbols-outlined text-[18px]">close</span>' +
-            '</button>' +
+            '<div class="flex justify-end gap-2">' +
+              '<button onclick="editBestDomain(' + index + ')" class="p-1.5 text-slate-400 hover:text-primary transition-colors hover:bg-slate-100 dark:hover:bg-zinc-800 rounded">' +
+                '<span class="material-symbols-outlined text-[20px]">edit_note</span>' +
+              '</button>' +
+              '<button onclick="deleteBestDomain(' + index + ')" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/10 rounded">' +
+                '<span class="material-symbols-outlined text-[20px]">delete</span>' +
+              '</button>' +
+            '</div>' +
           '</td>' +
         '</tr>';
       });
       listContainer.innerHTML = html;
+      
+      // 绑定拖拽事件
+      attachDragEvents();
     }
     
     // 拖拽排序功能
     let draggedIndex = null;
+    let draggedElement = null;
+    
+    function attachDragEvents() {
+      const rows = document.querySelectorAll('#best-domains-list .draggable-row');
+      rows.forEach(row => {
+        row.addEventListener('dragstart', handleDragStart);
+        row.addEventListener('dragover', handleDragOver);
+        row.addEventListener('drop', handleDrop);
+        row.addEventListener('dragend', handleDragEnd);
+        row.addEventListener('dragenter', handleDragEnter);
+        row.addEventListener('dragleave', handleDragLeave);
+      });
+    }
     
     function handleDragStart(e) {
       draggedIndex = parseInt(e.currentTarget.getAttribute('data-index'));
-      e.currentTarget.style.opacity = '0.4';
+      draggedElement = e.currentTarget;
+      e.currentTarget.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
     }
     
     function handleDragOver(e) {
@@ -5248,10 +5501,23 @@ function renderAdminPanel() {
       return false;
     }
     
+    function handleDragEnter(e) {
+      if (e.currentTarget !== draggedElement) {
+        e.currentTarget.classList.add('drag-over');
+      }
+    }
+    
+    function handleDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+    
     function handleDrop(e) {
       if (e.stopPropagation) {
         e.stopPropagation();
       }
+      e.preventDefault();
+      
+      e.currentTarget.classList.remove('drag-over');
       
       const dropIndex = parseInt(e.currentTarget.getAttribute('data-index'));
       
@@ -5260,14 +5526,20 @@ function renderAdminPanel() {
         currentBestDomains.splice(draggedIndex, 1);
         currentBestDomains.splice(dropIndex, 0, draggedItem);
         renderBestDomainsList();
+        autoSaveBestDomains(); // 自动保存
       }
       
       return false;
     }
     
     function handleDragEnd(e) {
-      e.currentTarget.style.opacity = '1';
+      e.currentTarget.classList.remove('dragging');
+      // 清除所有可能残留的drag-over类
+      document.querySelectorAll('.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
       draggedIndex = null;
+      draggedElement = null;
     }
     
     function batchAddBestDomains() {
@@ -5282,14 +5554,24 @@ function renderAdminPanel() {
       // 去重并添加到列表开头（方便用户使用，无需拖动）
       const addedDomains = [];
       newDomains.forEach(domain => {
-        if (!currentBestDomains.includes(domain)) {
-          addedDomains.push(domain);
+        // 检查是否已存在（对比address字段）
+        const exists = currentBestDomains.some(item => {
+          const itemAddr = typeof item === 'string' ? item : item.address;
+          return itemAddr === domain;
+        });
+        if (!exists) {
+          // 添加为对象格式，默认启用
+          addedDomains.push({
+            address: domain,
+            enabled: true
+          });
         }
       });
       currentBestDomains.unshift(...addedDomains);
       
       document.getElementById('best-domains-batch-input').value = '';
       renderBestDomainsList();
+      autoSaveBestDomains(); // 自动保存
       showAlert('已添加 ' + newDomains.length + ' 个优选域名', 'success');
     }
     
@@ -5298,6 +5580,7 @@ function renderAdminPanel() {
       if (!confirmed) return;
       currentBestDomains.splice(index, 1);
       renderBestDomainsList();
+      autoSaveBestDomains(); // 自动保存
     }
     
     async function clearAllBestDomains() {
@@ -5305,6 +5588,7 @@ function renderAdminPanel() {
       if (!confirmed) return;
       currentBestDomains = [];
       renderBestDomainsList();
+      autoSaveBestDomains(); // 自动保存
       showAlert('已清空优选域名列表', 'success');
     }
     
@@ -5334,6 +5618,7 @@ function renderAdminPanel() {
           });
           currentBestDomains.unshift(...addedDomains);
           renderBestDomainsList();
+          autoSaveBestDomains(); // 自动保存
           showAlert('已获取 ' + addedDomains.length + ' 个 IPv4 优选域名', 'success');
         } else {
           showAlert('获取失败: ' + (result.error || '未知错误'), 'error');
@@ -5363,12 +5648,22 @@ function renderAdminPanel() {
           const newDomains = result.domains || [];
           const addedDomains = [];
           newDomains.forEach(domain => {
-            if (!currentBestDomains.includes(domain)) {
-              addedDomains.push(domain);
+            // 检查是否已存在
+            const exists = currentBestDomains.some(item => {
+              const itemAddr = typeof item === 'string' ? item : item.address;
+              return itemAddr === domain;
+            });
+            if (!exists) {
+              // 添加为对象格式，默认启用
+              addedDomains.push({
+                address: domain,
+                enabled: true
+              });
             }
           });
           currentBestDomains.unshift(...addedDomains);
           renderBestDomainsList();
+          autoSaveBestDomains(); // 自动保存
           showAlert('已获取 ' + addedDomains.length + ' 个 IPv6 优选域名', 'success');
         } else {
           showAlert('获取失败: ' + (result.error || '未知错误'), 'error');
@@ -5378,12 +5673,65 @@ function renderAdminPanel() {
       }
     }
     
-    async function saveAllBestDomains() {
+    // 自动保存函数（静默保存，不显示提示）
+    async function autoSaveBestDomains() {
       try {
+        // 将对象格式转换为字符串格式保存
+        const domainsToSave = currentBestDomains.map(item => {
+          if (typeof item === 'string') {
+            // 字符串格式，直接返回
+            return item;
+          }
+          // 对象格式，检查是否禁用
+          if (item.enabled === false) {
+            // 检查是否已经有___DISABLED___前缀，避免重复添加
+            if (item.address.startsWith('___DISABLED___')) {
+              return item.address;
+            }
+            return '___DISABLED___' + item.address;
+          }
+          return item.address;
+        });
+        
         const response = await fetch('/api/admin/best-domains', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bestDomains: currentBestDomains })
+          body: JSON.stringify({ bestDomains: domainsToSave })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          console.error('自动保存失败:', result.error);
+        }
+      } catch (error) {
+        console.error('自动保存失败:', error);
+      }
+    }
+    
+    async function saveAllBestDomains() {
+      try {
+        // 将对象格式转换为字符串格式保存
+        const domainsToSave = currentBestDomains.map(item => {
+          if (typeof item === 'string') {
+            // 字符串格式，直接返回
+            return item;
+          }
+          // 对象格式，检查是否禁用
+          if (item.enabled === false) {
+            // 检查是否已经有___DISABLED___前缀，避免重复添加
+            if (item.address.startsWith('___DISABLED___')) {
+              return item.address;
+            }
+            return '___DISABLED___' + item.address;
+          }
+          return item.address;
+        });
+        
+        const response = await fetch('/api/admin/best-domains', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bestDomains: domainsToSave })
         });
         
         const result = await response.json();
@@ -5396,6 +5744,223 @@ function renderAdminPanel() {
       } catch (error) {
         showAlert('保存失败: ' + error.message, 'error');
       }
+    }
+    
+    // 批量操作相关函数
+    function toggleSelectAll() {
+      const selectAll = document.getElementById('select-all');
+      const checkboxes = document.querySelectorAll('.domain-check');
+      checkboxes.forEach(cb => {
+        cb.checked = selectAll.checked;
+      });
+      updateBatchActionsBar();
+    }
+    
+    function updateBatchActionsBar() {
+      const checkboxes = document.querySelectorAll('.domain-check:checked');
+      const count = checkboxes.length;
+      const countSpan = document.getElementById('selected-count');
+      const actionsBar = document.getElementById('batch-actions-bar');
+      
+      if (countSpan) countSpan.textContent = count;
+      if (actionsBar) {
+        if (count > 0) {
+          actionsBar.style.opacity = '1';
+          actionsBar.style.pointerEvents = 'auto';
+        } else {
+          actionsBar.style.opacity = '0';
+          actionsBar.style.pointerEvents = 'none';
+        }
+      }
+    }
+    
+    // Shadcn UI 风格开关功能
+    function toggleDomainStatusShadcn(index) {
+      const domainObj = currentBestDomains[index];
+      if (typeof domainObj === 'string') {
+        console.warn('意外的字符串格式域名:', domainObj);
+        currentBestDomains[index] = {
+          address: domainObj,
+          enabled: false
+        };
+      } else {
+        // 切换状态
+        domainObj.enabled = !domainObj.enabled;
+      }
+      renderBestDomainsList();
+      autoSaveBestDomains(); // 自动保存
+    }
+    
+    // 开关功能（保留旧版本兼容）
+    function toggleDomainStatus(index) {
+      toggleDomainStatusShadcn(index);
+    }
+    
+    // 编辑域名
+    async function editBestDomain(index) {
+      const domainObj = currentBestDomains[index];
+      const domain = typeof domainObj === 'string' ? domainObj : domainObj.address;
+      
+      // 解析当前域名
+      const parts = domain.split('#');
+      const address = parts[0] || '';
+      const alias = parts[1] || '';
+      
+      // 提取IP/域名和端口
+      let ip = address;
+      let port = '443';
+      if (address.includes(':')) {
+        const isIPv6 = address.includes('[');
+        if (isIPv6) {
+          const lastColon = address.lastIndexOf(':');
+          if (lastColon > address.lastIndexOf(']')) {
+            ip = address.substring(0, lastColon);
+            port = address.substring(lastColon + 1);
+          }
+        } else {
+          const addrParts = address.split(':');
+          ip = addrParts[0];
+          port = addrParts[1] || '443';
+        }
+      }
+      
+      const modalHtml = 
+        '<div class="space-y-4">' +
+          '<div>' +
+            '<label class="text-sm font-medium text-slate-700 dark:text-zinc-300 block mb-2">节点地址/IP</label>' +
+            '<input type="text" id="edit-domain-ip" value="' + ip + '" class="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary outline-none" placeholder="例如: 104.16.88.20 或 cf.twitter.now.cc"/>' +
+          '</div>' +
+          '<div>' +
+            '<label class="text-sm font-medium text-slate-700 dark:text-zinc-300 block mb-2">端口</label>' +
+            '<input type="number" id="edit-domain-port" value="' + port + '" class="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary outline-none" placeholder="443"/>' +
+          '</div>' +
+          '<div>' +
+            '<label class="text-sm font-medium text-slate-700 dark:text-zinc-300 block mb-2">别名/标签（可选）</label>' +
+            '<input type="text" id="edit-domain-alias" value="' + alias + '" class="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary outline-none" placeholder="例如: 香港 或 美国"/>' +
+          '</div>' +
+          '<div class="flex gap-3 pt-2">' +
+            '<button onclick="closeModal()" class="flex-1 px-4 py-2 text-sm font-medium border border-slate-200 dark:border-zinc-800 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors">' +
+              '取消' +
+            '</button>' +
+            '<button onclick="confirmEditDomain(' + index + ')" class="flex-1 px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:opacity-90 transition-opacity">' +
+              '保存' +
+            '</button>' +
+          '</div>' +
+        '</div>';
+      
+      openModal('编辑优选域名', modalHtml);
+    }
+    
+    function confirmEditDomain(index) {
+      const ip = document.getElementById('edit-domain-ip').value.trim();
+      const port = document.getElementById('edit-domain-port').value.trim() || '443';
+      const alias = document.getElementById('edit-domain-alias').value.trim();
+      
+      if (!ip) {
+        showAlert('请输入节点地址或IP', 'warning');
+        return;
+      }
+      
+      // 始终包含端口号，确保parseDomainEntry能正确识别格式
+      let newAddress = ip + ':' + port;
+      
+      // 添加别名
+      if (alias) {
+        newAddress = newAddress + '#' + alias;
+      }
+      
+      const domainObj = currentBestDomains[index];
+      if (typeof domainObj === 'string') {
+        currentBestDomains[index] = newAddress;
+      } else {
+        domainObj.address = newAddress;
+      }
+      
+      renderBestDomainsList();
+      autoSaveBestDomains(); // 自动保存
+      closeModal();
+      showAlert('已更新节点信息', 'success');
+    }
+    
+    // 批量启用
+    async function batchEnableDomains() {
+      const checkboxes = document.querySelectorAll('.domain-check:checked');
+      if (checkboxes.length === 0) {
+        showAlert('请先选择要启用的域名', 'warning');
+        return;
+      }
+      
+      checkboxes.forEach(cb => {
+        const index = parseInt(cb.getAttribute('data-index'));
+        const domainObj = currentBestDomains[index];
+        if (typeof domainObj === 'string') {
+          currentBestDomains[index] = { address: domainObj, enabled: true };
+        } else {
+          domainObj.enabled = true;
+        }
+      });
+      
+      renderBestDomainsList();
+      autoSaveBestDomains(); // 自动保存
+      showAlert('已启用 ' + checkboxes.length + ' 个域名', 'success');
+      
+      // 清除选择
+      document.getElementById('select-all').checked = false;
+      updateBatchActionsBar();
+    }
+    
+    // 批量禁用
+    async function batchDisableDomains() {
+      const checkboxes = document.querySelectorAll('.domain-check:checked');
+      if (checkboxes.length === 0) {
+        showAlert('请先选择要禁用的域名', 'warning');
+        return;
+      }
+      
+      checkboxes.forEach(cb => {
+        const index = parseInt(cb.getAttribute('data-index'));
+        const domainObj = currentBestDomains[index];
+        if (typeof domainObj === 'string') {
+          currentBestDomains[index] = { address: domainObj, enabled: false };
+        } else {
+          domainObj.enabled = false;
+        }
+      });
+      
+      renderBestDomainsList();
+      autoSaveBestDomains(); // 自动保存
+      showAlert('已禁用 ' + checkboxes.length + ' 个域名', 'success');
+      
+      // 清除选择
+      document.getElementById('select-all').checked = false;
+      updateBatchActionsBar();
+    }
+    
+    // 批量删除
+    async function batchDeleteDomains() {
+      const checkboxes = document.querySelectorAll('.domain-check:checked');
+      if (checkboxes.length === 0) {
+        showAlert('请先选择要删除的域名', 'warning');
+        return;
+      }
+      
+      const confirmed = await showConfirm('确定要删除选中的 ' + checkboxes.length + ' 个域名吗？\\n\\n⚠️ 此操作不可恢复！', '批量删除');
+      if (!confirmed) return;
+      
+      const indices = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-index')));
+      // 从大到小排序，避免删除时索引错乱
+      indices.sort((a, b) => b - a);
+      indices.forEach(index => {
+        currentBestDomains.splice(index, 1);
+      });
+      
+      renderBestDomainsList();
+      autoSaveBestDomains(); // 自动保存
+      showAlert('已删除 ' + indices.length + ' 个域名', 'success');
+      
+      // 清除选择
+      document.getElementById('select-all').checked = false;
+      updateBatchActionsBar();
     }
     
     let nextSyncSeconds = 15 * 60; // 15分钟 = 900秒
@@ -5456,8 +6021,16 @@ function renderAdminPanel() {
         
         const nodes = [];
         for (let i = 0; i < currentBestDomains.length; i++) {
-          const domain = currentBestDomains[i];
-          const parsed = parseDomainEntry(domain);
+          const domainObj = currentBestDomains[i];
+          // 检查是否启用，只显示启用的节点
+          const enabled = typeof domainObj === 'object' ? (domainObj.enabled !== false) : true;
+          
+          // 过滤掉禁用的节点
+          if (!enabled) {
+            continue;
+          }
+          
+          const parsed = parseDomainEntry(domainObj);
           if (parsed) {
             // 构建节点地址显示
             let nodeAddress;
@@ -5491,15 +6064,26 @@ function renderAdminPanel() {
     // 格式4: cf.twitter.now.cc:443 (域名，带端口)
     function parseDomainEntry(entry) {
       try {
+        // 支持对象格式和字符串格式
+        let entryStr;
+        if (typeof entry === 'string') {
+          entryStr = entry;
+        } else if (typeof entry === 'object' && entry.address) {
+          entryStr = entry.address;
+        } else {
+          console.error('解析域名条目失败: 无效格式', entry);
+          return null;
+        }
+        
         // 检查是否有#分隔符
         let addressPart, infoPart;
-        if (entry.includes('#')) {
-          const parts = entry.split('#');
+        if (entryStr.includes('#')) {
+          const parts = entryStr.split('#');
           addressPart = parts[0].trim();
           infoPart = parts[1].trim();
         } else {
           // 没有#，说明是纯域名
-          addressPart = entry.trim();
+          addressPart = entryStr.trim();
           infoPart = '';
         }
         
@@ -5513,13 +6097,16 @@ function renderAdminPanel() {
           address = ipv6Match[1]; // 2606:4700:7::a29f:8601
           port = ipv6Match[2]; // 443
           isDomain = false;
-        } else if (addressPart.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}:/)) {
-          // IPv4: 104.18.34.78:443
-          const ipv4Match = addressPart.match(/^([0-9.]+):([0-9]+)$/);
-          if (!ipv4Match) return null;
-          address = ipv4Match[1]; // 104.18.34.78
-          port = ipv4Match[2]; // 443
-          isDomain = false;
+        } else if (addressPart.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/)) {
+          // IPv4: 104.18.34.78:443 或 104.18.34.78
+          const ipv4Match = addressPart.match(/^([0-9.]+):?([0-9]+)?$/);
+          if (ipv4Match) {
+            address = ipv4Match[1]; // 104.18.34.78
+            port = ipv4Match[2] || '443'; // 端口，默认443
+            isDomain = false;
+          } else {
+            return null;
+          }
         } else {
           // 域名: cf.twitter.now.cc 或 cf.twitter.now.cc:443
           isDomain = true;
@@ -5540,22 +6127,25 @@ function renderAdminPanel() {
         
         // 解析标签和地区
         let label, region;
-        if (isDomain) {
-          // 域名节点：名称就是域名本身，地区为空
-          label = address;
-          region = '';
-        } else if (infoPart) {
-          // IP节点：解析标签和地区
-          // 格式: "v4移动 LHR" -> label: v4移动, region: LHR
+        if (infoPart) {
+          // 有#分隔符，说明有自定义别名或标签
+          // 优先使用用户设置的别名
+          // 格式可能是: "台湾121" 或 "v4移动 LHR" 或 "美国"
           const infoMatch = infoPart.match(/^(.+?)\s+([A-Z]{2,4})$/);
           if (infoMatch) {
             label = infoMatch[1]; // v4移动
             region = infoMatch[2]; // LHR
           } else {
-            label = infoPart; // 整个作为标签
+            // 整个作为标签（用户自定义别名）
+            label = infoPart;
             region = '';
           }
+        } else if (isDomain) {
+          // 域名节点且无别名：名称就是域名本身
+          label = address;
+          region = '';
         } else {
+          // IP节点且无别名：使用IP地址
           label = address;
           region = '';
         }
@@ -5646,6 +6236,17 @@ function renderAdminPanel() {
             document.getElementById('input-apiToken').value = settings.apiToken || '';
           }
           
+          // 加载 Turnstile 人机验证配置
+          if (document.getElementById('input-enableTurnstile')) {
+            document.getElementById('input-enableTurnstile').checked = settings.enableTurnstile || false;
+          }
+          if (document.getElementById('input-turnstileSiteKey')) {
+            document.getElementById('input-turnstileSiteKey').value = settings.turnstileSiteKey || '';
+          }
+          if (document.getElementById('input-turnstileSecretKey')) {
+            document.getElementById('input-turnstileSecretKey').value = settings.turnstileSecretKey || '';
+          }
+          
           // 加载仪表盘快捷操作开关
           const toggleRequireInvite = document.getElementById('toggle-require-invite');
           if (toggleRequireInvite) {
@@ -5657,10 +6258,112 @@ function renderAdminPanel() {
           const websiteUrlInput = document.getElementById('website-url');
           if (subUrlInput) subUrlInput.value = settings.subUrl || '';
           if (websiteUrlInput) websiteUrlInput.value = settings.websiteUrl || '';
+          
+          // 设置实时保存监听器
+          setupAutoSaveListeners();
         }
       } catch (error) {
         console.error('加载系统配置失败:', error);
       }
+    }
+    
+    // 设置自动保存监听器
+    function setupAutoSaveListeners() {
+      let saveTimeout;
+      
+      const autoSave = async () => {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(async () => {
+          try {
+            const settings = {
+              enableTrial: document.getElementById('input-enableTrial').checked,
+              trialDays: parseInt(document.getElementById('input-trialDays').value),
+              autoApproveOrder: document.getElementById('input-autoApproveOrder').checked,
+              requireInviteCode: document.getElementById('input-requireInviteCode').checked,
+              pendingOrderExpiry: parseInt(document.getElementById('input-pendingOrderExpiry').value),
+              paymentOrderExpiry: parseInt(document.getElementById('input-paymentOrderExpiry').value)
+            };
+            
+            // 添加快捷链接配置
+            const link1Name = document.getElementById('input-link1-name');
+            const link1Url = document.getElementById('input-link1-url');
+            const link2Name = document.getElementById('input-link2-name');
+            const link2Url = document.getElementById('input-link2-url');
+            
+            if (link1Name) settings.link1Name = link1Name.value.trim();
+            if (link1Url) settings.link1Url = link1Url.value.trim();
+            if (link2Name) settings.link2Name = link2Name.value.trim();
+            if (link2Url) settings.link2Url = link2Url.value.trim();
+            
+            // 添加自动清理配置
+            const autoCleanupEnabled = document.getElementById('input-autoCleanupEnabled');
+            const autoCleanupDays = document.getElementById('input-autoCleanupDays');
+            
+            if (autoCleanupEnabled) settings.autoCleanupEnabled = autoCleanupEnabled.checked;
+            if (autoCleanupDays) settings.autoCleanupDays = parseInt(autoCleanupDays.value);
+            
+            // 添加 API 密钥配置
+            const apiToken = document.getElementById('input-apiToken');
+            if (apiToken) settings.apiToken = apiToken.value.trim();
+            
+            // 添加 Turnstile 人机验证配置
+            const enableTurnstile = document.getElementById('input-enableTurnstile');
+            const turnstileSiteKey = document.getElementById('input-turnstileSiteKey');
+            const turnstileSecretKey = document.getElementById('input-turnstileSecretKey');
+            if (enableTurnstile) settings.enableTurnstile = enableTurnstile.checked;
+            if (turnstileSiteKey) settings.turnstileSiteKey = turnstileSiteKey.value.trim();
+            if (turnstileSecretKey) settings.turnstileSecretKey = turnstileSecretKey.value.trim();
+            
+            const response = await fetch('/api/admin/updateSystemSettings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(settings)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              showToast('✅ 设置已自动保存');
+            }
+          } catch (error) {
+            console.error('自动保存失败:', error);
+          }
+        }, 800); // 0.8秒防抖
+      };
+      
+      // 为所有开关添加监听
+      const switches = [
+        'input-enableTrial',
+        'input-autoApproveOrder',
+        'input-requireInviteCode',
+        'input-autoCleanupEnabled',
+        'input-enableTurnstile'
+      ];
+      
+      switches.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', autoSave);
+      });
+      
+      // 为所有输入框和下拉框添加监听
+      const inputs = [
+        'input-trialDays',
+        'input-pendingOrderExpiry',
+        'input-paymentOrderExpiry',
+        'input-link1-name',
+        'input-link1-url',
+        'input-link2-name',
+        'input-link2-url',
+        'input-autoCleanupDays',
+        'input-apiToken',
+        'input-turnstileSiteKey',
+        'input-turnstileSecretKey'
+      ];
+      
+      inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', autoSave);
+      });
     }
     
     // 保存系统配置
@@ -5893,8 +6596,7 @@ function renderAdminPanel() {
               '</div>' +
             '</div>' +
             '<div class="p-6 border-t border-border-light dark:border-border-dark flex justify-end gap-3">' +
-              '<button onclick="closeModal()" class="px-4 py-2 text-sm font-medium border border-border-light dark:border-border-dark rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-900">取消</button>' +
-              '<button onclick="saveUserFrontendUrl()" class="px-4 py-2 text-sm font-medium bg-primary text-white rounded-md hover:bg-zinc-800">保存</button>' +
+              '<button onclick="closeModal()" class="px-4 py-2 text-sm font-medium border border-border-light dark:border-border-dark rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-900">关闭</button>' +
             '</div>' +
           '</div>' +
         '</div>';
@@ -5907,6 +6609,37 @@ function renderAdminPanel() {
           if (data.success && data.settings && data.settings.userFrontendUrl) {
             document.getElementById('input-user-frontend-url').value = data.settings.userFrontendUrl;
           }
+          
+          // 添加实时保存监听
+          const urlInput = document.getElementById('input-user-frontend-url');
+          let saveTimeout;
+          urlInput.addEventListener('input', function() {
+            clearTimeout(saveTimeout);
+            
+            saveTimeout = setTimeout(async () => {
+              const url = this.value.trim();
+              
+              // 如果有值但格式不对，不保存
+              if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+                return;
+              }
+              
+              try {
+                const response = await fetch('/api/admin/updateSystemSettings', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userFrontendUrl: url })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                  showToast('✅ 用户前端链接已保存');
+                }
+              } catch (error) {
+                console.error('保存失败:', error);
+              }
+            }, 1000); // 1秒防抖
+          });
         })
         .catch(err => console.error('加载配置失败:', err));
     }
@@ -5966,8 +6699,7 @@ function renderAdminPanel() {
               '</div>' +
             '</div>' +
             '<div class="p-6 border-t border-border-light dark:border-border-dark flex justify-end gap-3">' +
-              '<button onclick="closeModal()" class="px-4 py-2 text-sm font-medium border border-border-light dark:border-border-dark rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-900">取消</button>' +
-              '<button onclick="saveAutoCleanupSettings()" class="px-4 py-2 text-sm font-medium bg-primary text-white rounded-md hover:bg-zinc-800">保存</button>' +
+              '<button onclick="closeModal()" class="px-4 py-2 text-sm font-medium border border-border-light dark:border-border-dark rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-900">关闭</button>' +
             '</div>' +
           '</div>' +
         '</div>';
@@ -5981,6 +6713,45 @@ function renderAdminPanel() {
             document.getElementById('toggle-auto-cleanup').checked = data.settings.autoCleanupEnabled || false;
             document.getElementById('input-cleanup-days').value = data.settings.autoCleanupDays || 30;
           }
+          
+          // 添加实时保存监听
+          const toggleCheckbox = document.getElementById('toggle-auto-cleanup');
+          const daysInput = document.getElementById('input-cleanup-days');
+          let saveTimeout;
+          
+          const autoSaveCleanupSettings = async () => {
+            clearTimeout(saveTimeout);
+            
+            saveTimeout = setTimeout(async () => {
+              const enabled = toggleCheckbox.checked;
+              const days = parseInt(daysInput.value);
+              
+              if (days < 7) {
+                return;
+              }
+              
+              try {
+                const response = await fetch('/api/admin/updateSystemSettings', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    autoCleanupEnabled: enabled,
+                    autoCleanupDays: days
+                  })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                  showToast('✅ 自动清理设置已保存');
+                }
+              } catch (error) {
+                console.error('保存失败:', error);
+              }
+            }, 500); // 0.5秒防抖
+          };
+          
+          toggleCheckbox.addEventListener('change', autoSaveCleanupSettings);
+          daysInput.addEventListener('input', autoSaveCleanupSettings);
         })
         .catch(err => console.error('加载配置失败:', err));
     }

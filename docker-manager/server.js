@@ -14,6 +14,7 @@ const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/user');
 const { renderAdminPanel, renderAdminLoginPage } = require('./views/admin');
 const { renderUserPanel, renderAuthPage } = require('./views/user');
+const { renderLandingPage } = require('./views/landing');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -158,7 +159,34 @@ app.get(`${ADMIN_PATH}*`, async (req, res) => {
     }
 });
 
-// 用户前端页面
+// 品牌介绍页（首页）
+app.get('/', (req, res) => {
+    res.send(renderLandingPage());
+});
+
+// 登录页面
+app.get('/login', async (req, res) => {
+    const isLogged = await checkUserSession(req);
+    if (isLogged) {
+        const userInfo = await getUserInfo(req);
+        res.send(await renderUserPanel(userInfo));
+    } else {
+        res.send(await renderAuthPage());
+    }
+});
+
+// 注册页面
+app.get('/register', async (req, res) => {
+    const isLogged = await checkUserSession(req);
+    if (isLogged) {
+        const userInfo = await getUserInfo(req);
+        res.send(await renderUserPanel(userInfo));
+    } else {
+        res.send(await renderAuthPage());
+    }
+});
+
+// 用户前端页面（其他路径）
 app.get('*', async (req, res) => {
     const isLogged = await checkUserSession(req);
     if (!isLogged) {

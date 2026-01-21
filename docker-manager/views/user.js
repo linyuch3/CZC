@@ -104,6 +104,8 @@ async function renderAuthPage() {
     const siteName = settings.siteName || 'CloudDash';
     const enableRegister = settings.enableRegister === true;
     const requireInviteCode = settings.requireInviteCode === true;
+    const enableTurnstile = settings.enableTurnstile === true;
+    const turnstileSiteKey = settings.turnstileSiteKey || '';
     
     return `<!DOCTYPE html>
 <html class="light" lang="zh-CN">
@@ -117,6 +119,7 @@ async function renderAuthPage() {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
 <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>
 tailwind.config = {
   darkMode: "class",
@@ -174,6 +177,30 @@ body { font-family: 'Inter', 'Noto Sans SC', sans-serif; -webkit-font-smoothing:
   backdrop-filter: blur(10px);
   box-shadow: 0 20px 60px rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
+
+/* Cloudflare Turnstile 样式 */
+.cf-turnstile-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem 0;
+  min-height: 65px;
+}
+
+.cf-turnstile {
+  margin: 0 auto;
+}
+
+/* 深色模式下调整 Turnstile */
+.dark .cf-turnstile iframe {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* 禁用状态的按钮样式 */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>
 </head>
 <body class="bg-slate-50 dark:bg-zinc-950 min-h-screen flex items-center justify-center p-4 overflow-hidden">
@@ -200,11 +227,11 @@ body { font-family: 'Inter', 'Noto Sans SC', sans-serif; -webkit-font-smoothing:
 <div id="loginForm" class="p-6 space-y-4">
 <div class="space-y-2">
 <label class="text-sm font-medium text-slate-700 dark:text-zinc-300">用户名</label>
-<input id="loginUsername" type="text" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入用户名"/>
+<input id="loginUsername" type="text" class="w-full px-3 py-2 bg-transparent text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入用户名"/>
 </div>
 <div class="space-y-2">
 <label class="text-sm font-medium text-slate-700 dark:text-zinc-300">密码</label>
-<input id="loginPassword" type="password" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入密码"/>
+<input id="loginPassword" type="password" class="w-full px-3 py-2 bg-transparent text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入密码"/>
 </div>
 <button onclick="handleLogin()" class="w-full bg-primary text-white py-2 rounded-md hover:opacity-90 transition-opacity font-medium">登录</button>
 <div id="loginError" class="hidden text-sm text-red-600"></div>
@@ -214,17 +241,20 @@ body { font-family: 'Inter', 'Noto Sans SC', sans-serif; -webkit-font-smoothing:
 ${!enableRegister ? '<div class="text-center text-slate-500 py-4">注册功能暂未开放</div>' : `
 <div class="space-y-2">
 <label class="text-sm font-medium text-slate-700 dark:text-zinc-300">用户名</label>
-<input id="registerUsername" type="text" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="3-20个字符"/>
+<input id="registerUsername" type="text" class="w-full px-3 py-2 bg-transparent text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="3-20个字符"/>
 </div>
 <div class="space-y-2">
 <label class="text-sm font-medium text-slate-700 dark:text-zinc-300">密码</label>
-<input id="registerPassword" type="password" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="至少6个字符"/>
+<input id="registerPassword" type="password" class="w-full px-3 py-2 bg-transparent text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="至少6个字符"/>
 </div>
 ${requireInviteCode ? `<div class="space-y-2">
 <label class="text-sm font-medium text-slate-700 dark:text-zinc-300">邀请码</label>
-<input id="registerInviteCode" type="text" class="w-full px-3 py-2 bg-transparent border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入邀请码"/>
+<input id="registerInviteCode" type="text" class="w-full px-3 py-2 bg-transparent text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-800 rounded-md focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600" placeholder="请输入邀请码"/>
 </div>` : ''}
-<button onclick="handleRegister()" class="w-full bg-primary text-white py-2 rounded-md hover:opacity-90 transition-opacity font-medium">注册</button>
+${enableTurnstile && turnstileSiteKey ? `<div id="turnstile-container" class="cf-turnstile-wrapper">
+<div class="cf-turnstile" data-sitekey="${turnstileSiteKey}" data-callback="onTurnstileSuccess" data-theme="auto" data-size="normal"></div>
+</div>` : ''}
+<button id="registerButton" onclick="handleRegister()" class="w-full bg-primary text-white py-2 rounded-md hover:opacity-90 transition-opacity font-medium" ${enableTurnstile && turnstileSiteKey ? 'disabled' : ''}>注册</button>
 <div id="registerError" class="hidden text-sm text-red-600"></div>
 `}
 </div>
@@ -457,6 +487,17 @@ async function handleLogin() {
   }
 }
 
+// Turnstile 验证成功回调
+let turnstileToken = null;
+
+function onTurnstileSuccess(token) {
+  turnstileToken = token;
+  const registerButton = document.getElementById('registerButton');
+  if (registerButton) {
+    registerButton.disabled = false;
+  }
+}
+
 async function handleRegister() {
   const username = document.getElementById('registerUsername').value;
   const password = document.getElementById('registerPassword').value;
@@ -471,11 +512,19 @@ async function handleRegister() {
     return;
   }
   
+  // 检查是否启用了 Turnstile (通过检查容器是否存在)
+  const turnstileContainer = document.getElementById('turnstile-container');
+  if (turnstileContainer && !turnstileToken) {
+    errorEl.textContent = '请完成人机验证';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  
   try {
     const res = await fetch('/api/user/register', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({username, password, email: '', invite_code})
+      body: JSON.stringify({username, password, email: '', invite_code, turnstileToken})
     });
     const data = await res.json();
     
@@ -811,7 +860,7 @@ ${generateWeekCalendar(user.last_checkin, user.checkin_streak || 0)}
 <div class="p-2.5 md:p-3 bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 rounded-md">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-[14px] md:text-[16px] text-slate-600 dark:text-zinc-400">info</span>
-<p class="text-[10px] md:text-xs text-slate-600 dark:text-zinc-400">奖励里程碑：连续签到 7 天额外奖励 3 天时长</p>
+<p class="text-[10px] md:text-xs text-slate-600 dark:text-zinc-400">奖励里程碑：每连续签到 7 天额外奖励 3 天时长（可持续累计）</p>
 </div>
 </div>
 
@@ -936,7 +985,7 @@ ${hasCheckedIn ? '今日已签到' : '立即签到'}
 </div>
 
 <footer class="pt-12 pb-8 text-center border-t border-slate-100 dark:border-zinc-900">
-<p class="text-xs text-slate-400 dark:text-zinc-600">© 2024 ${siteName}. All rights reserved.</p>
+<p class="text-xs text-slate-400 dark:text-zinc-600">© 2026 ${siteName}. All rights reserved.</p>
 </footer>
 </div>
 </main>
@@ -1100,18 +1149,24 @@ function parseDomainEntry(entry) {
     let address, port, isDomain = false;
     
     if (addressPart.startsWith('[')) {
+      // IPv6: [2606:4700:7::a29f:8601]:443
       const ipv6Match = addressPart.match(/^\\[([^\\]]+)\\]:([0-9]+)$/);
       if (!ipv6Match) return null;
       address = ipv6Match[1];
       port = ipv6Match[2];
       isDomain = false;
-    } else if (addressPart.match(/^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}:/)) {
-      const ipv4Match = addressPart.match(/^([0-9.]+):([0-9]+)$/);
-      if (!ipv4Match) return null;
-      address = ipv4Match[1];
-      port = ipv4Match[2];
-      isDomain = false;
+    } else if (addressPart.match(/^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}/)) {
+      // IPv4: 104.18.34.78:443 或 104.18.34.78
+      const ipv4Match = addressPart.match(/^([0-9.]+):?([0-9]+)?$/);
+      if (ipv4Match) {
+        address = ipv4Match[1];
+        port = ipv4Match[2] || '443'; // 端口，默认443
+        isDomain = false;
+      } else {
+        return null;
+      }
     } else {
+      // 域名: cf.twitter.now.cc 或 cf.twitter.now.cc:443
       isDomain = true;
       if (addressPart.includes(':')) {
         const domainMatch = addressPart.match(/^([^:]+):([0-9]+)$/);
@@ -1128,20 +1183,26 @@ function parseDomainEntry(entry) {
       }
     }
     
+    // 解析标签和地区
     let label, region;
-    if (isDomain) {
-      label = address;
-      region = '';
-    } else if (infoPart) {
+    if (infoPart) {
+      // 有#分隔符，说明有自定义别名或标签
+      // 优先使用用户设置的别名
       const infoMatch = infoPart.match(/^(.+?)\\s+([A-Z]{2,4})$/);
       if (infoMatch) {
         label = infoMatch[1];
         region = infoMatch[2];
       } else {
+        // 整个作为标签（用户自定义别名）
         label = infoPart;
         region = '';
       }
+    } else if (isDomain) {
+      // 域名节点且无别名：名称就是域名本身
+      label = address;
+      region = '';
     } else {
+      // IP节点且无别名：使用IP地址
       label = address;
       region = '';
     }
@@ -1829,6 +1890,18 @@ if(navItems.includes(initialPage)) {
 } else {
   switchPage('account');
 }
+
+// 页面加载后自动显示公告（仅显示一次，使用 sessionStorage）
+(function() {
+  const hasShownAnnouncement = sessionStorage.getItem('announcementShown');
+  if (!hasShownAnnouncement) {
+    // 延迟500ms后显示公告，确保页面已完全加载
+    setTimeout(() => {
+      showAnnouncements();
+      sessionStorage.setItem('announcementShown', 'true');
+    }, 500);
+  }
+})();
 </script>
 </body>
 </html>`;

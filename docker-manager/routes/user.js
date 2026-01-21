@@ -7,6 +7,37 @@ const crypto = require('crypto');
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 
+// 验证 Cloudflare Turnstile Token
+async function verifyTurnstileToken(token) {
+    const settings = db.getSettings() || {};
+    const secretKey = settings.turnstileSecretKey || process.env.TURNSTILE_SECRET_KEY;
+    
+    // 如果没有配置密钥,跳过验证
+    if (!secretKey) {
+        console.log('⚠️  未配置 Turnstile Secret Key，跳过人机验证');
+        return true;
+    }
+    
+    try {
+        const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                secret: secretKey,
+                response: token,
+            }),
+        });
+        
+        const data = await response.json();
+        return data.success === true;
+    } catch (error) {
+        console.error('Turnstile 验证失败:', error);
+        return false;
+    }
+}
+
 // 验证用户会话
 function validateUserSession(req) {
     const sessionId = req.cookies?.user_session;
@@ -27,10 +58,23 @@ async function register(req, res) {
     }
     
     try {
-        const { username, password, email, invite_code } = req.body;
+        const { username, password, email, invite_code, turnstileToken } = req.body;
         
         if (!username || !password) {
             return res.status(400).json({ error: '用户名和密码不能为空' });
+        }
+        
+        // 验证 Turnstile Token (仅在启用且配置了 Site Key 时)
+        const enableTurnstile = settings.enableTurnstile === true;
+        const turnstileSiteKey = settings.turnstileSiteKey;
+        if (enableTurnstile && turnstileSiteKey && turnstileSiteKey.trim()) {
+            if (!turnstileToken) {
+                return res.status(400).json({ error: '请完成人机验证' });
+            }
+            const isValidToken = await verifyTurnstileToken(turnstileToken);
+            if (!isValidToken) {
+                return res.status(400).json({ error: '人机验证失败，请重试' });
+            }
         }
         
         if (username.length < 3 || username.length > 20) {
@@ -524,9 +568,25 @@ async function checkin(req, res) {
             milestoneReward = 10;
             rewardDays += milestoneReward;
             message = `🎊 连续签到 30 天！额外奖励 ${milestoneReward} 天，总共 +${rewardDays} 天`;
+        } else if (checkinStreak === 60) {
+            milestoneReward = 20;
+            rewardDays += milestoneReward;
+            message = `🏆 连续签到 60 天！额外奖励 ${milestoneReward} 天，总共 +${rewardDays} 天`;
+        } else if (checkinStreak === 90) {
+            milestoneReward = 30;
+            rewardDays += milestoneReward;
+            message = `👑 连续签到 90 天！额外奖励 ${milestoneReward} 天，总共 +${rewardDays} 天`;
+        } else if (checkinStreak === 180) {
+            milestoneReward = 60;
+            rewardDays += milestoneReward;
+            message = `💎 连续签到 180 天！额外奖励 ${milestoneReward} 天，总共 +${rewardDays} 天`;
+        } else if (checkinStreak === 365) {
+            milestoneReward = 120;
+            rewardDays += milestoneReward;
+            message = `🌟 连续签到 365 天！额外奖励 ${milestoneReward} 天，总共 +${rewardDays} 天`;
         } else if (checkinStreak % 7 === 0 && checkinStreak > 7) {
-            // 每连续7天额外奖励1天
-            milestoneReward = 1;
+            // 每连续7天额外奖励3天（保持和第一周相同的奖励力度）
+            milestoneReward = 3;
             rewardDays += milestoneReward;
             message = `✨ 连续签到 ${checkinStreak} 天！额外奖励 ${milestoneReward} 天，总共 +${rewardDays} 天`;
         }
@@ -611,10 +671,20 @@ function getBestDomains(req, res) {
             });
         }
         
-        const bestDomains = db.getBestDomains();
+        const allDomains = db.getBestDomains();
+        
+        // 过滤掉禁用的节点，只返回启用的
+        const enabledDomains = allDomains.filter(domain => {
+            // 如果以___DISABLED___开头，说明是禁用的
+            if (typeof domain === 'string' && domain.startsWith('___DISABLED___')) {
+                return false;
+            }
+            return true;
+        });
+        
         res.json({
             success: true,
-            domains: bestDomains
+            domains: enabledDomains
         });
     } catch (e) {
         console.error('获取最佳域名错误:', e);
