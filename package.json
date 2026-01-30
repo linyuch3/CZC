@@ -1,0 +1,27 @@
+{
+  "name": "cccz",
+  "version": "1.0.0",
+  "description": "。。。。。。",
+  "main": "Manager-Worker-DarkUI.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "obfuscate:node": "javascript-obfuscator Node-Worker.js --output Node-Worker.obfuscated.js --compact true --identifier-names-generator hexadecimal --rename-globals true --string-array true --string-array-threshold 1 --string-array-encoding base64 --transform-object-keys true --seed 0",
+    "obfuscate:v2bx": "javascript-obfuscator V2bX-Node-Worker.js --output V2bX-Node-Worker.obfuscated.js --compact true --identifier-names-generator hexadecimal --rename-globals true --string-array true --string-array-threshold 1 --string-array-encoding base64 --transform-object-keys true --seed 0",
+    "obfuscate:all": "npm run obfuscate:node && npm run obfuscate:v2bx"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HendersonBasinger/cccz.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/HendersonBasinger/cccz/issues"
+  },
+  "homepage": "https://github.com/HendersonBasinger/cccz#readme",
+  "devDependencies": {
+    "javascript-obfuscator": "^5.2.1"
+  }
+}

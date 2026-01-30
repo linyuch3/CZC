@@ -170,6 +170,18 @@ export default {
                 });
             }
             
+            if (url.pathname === '/debug') {
+                await syncRemoteConfig();
+                return new Response(JSON.stringify({
+                    users: cachedData.users,
+                    settings: cachedData.settings,
+                    lastUpdate: new Date(cachedData.lastUpdate).toISOString(),
+                    apiUrl: REMOTE_API_URL
+                }, null, 2), {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            
             await syncRemoteConfig();
             const users = cachedData.users;
             for (const [uuid, userInfo] of Object.entries(users)) {

@@ -1,8 +1,8 @@
 import { connect } from 'cloudflare:sockets';
 
-// 配置区域
-const REMOTE_API_URL = 'https://uuid.hailizi.workers.dev/api/users';
-const API_TOKEN = '';
+// 配置区域 - 默认值（如果环境变量未设置则使用）
+const DEFAULT_REMOTE_API_URL = 'https://uuid.hailizi.workers.dev/api/users';
+const DEFAULT_API_TOKEN = '';
 const FALLBACK_CONFIG = {
     proxyIPs: ['cdn.xn--b6gac.eu.org'],
     bestDomains: ['bestcf.030101.xyz:443', 'japan.com:443', 'www.visa.com.sg:443']
@@ -53,6 +53,12 @@ let cachedData = {
     lastUpdate: 0
 };
 
+// 运行时配置（在 fetch 中初始化）
+let RUNTIME_CONFIG = {
+    apiUrl: DEFAULT_REMOTE_API_URL,
+    apiToken: DEFAULT_API_TOKEN
+};
+
 // =============================================================================
 // 地理位置智能匹配（精简版）
 // =============================================================================
@@ -84,7 +90,13 @@ function smartSortProxies(proxyList, targetAddress) {
 // 主入口
 // =============================================================================
 export default {
-    async fetch(req) {
+    async fetch(req, env, ctx) {
+        // 从环境变量读取配置，如果未设置则使用默认值
+        RUNTIME_CONFIG = {
+            apiUrl: env.API_URL || DEFAULT_REMOTE_API_URL,
+            apiToken: env.API_TOKEN || DEFAULT_API_TOKEN
+        };
+        
         const url = new URL(req.url);
         
         // WebSocket 升级请求 - VLESS 流量处理
@@ -117,37 +129,7 @@ export default {
                 }
                 
                 const displayUrl = websiteUrl.replace(/^https?:\/\//, '');
-                
-                const html = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CFly 官网入口</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.box{background:#fff;border-radius:15px;padding:40px 30px;text-align:center;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
-.logo{font-size:40px;margin-bottom:15px}
-h1{color:#333;font-size:24px;margin-bottom:10px}
-.sub{color:#666;font-size:14px;margin-bottom:25px}
-.btn{display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;padding:12px 40px;border-radius:25px;font-size:16px;transition:.3s}
-.btn:hover{transform:translateY(-2px);box-shadow:0 5px 20px rgba(102,126,234,.5)}
-.url{color:#999;font-size:12px;margin-top:20px;word-break:break-all}
-.status{background:#10b981;color:#fff;padding:5px 12px;border-radius:15px;font-size:12px;margin-bottom:15px;display:inline-block}
-</style>
-</head>
-<body>
-<div class="box">
-<div class="status">✅ 运行中</div>
-<div class="logo">🚀</div>
-<h1>CFly 官网入口</h1>
-<p class="sub">点击下方按钮访问官网</p>
-<a href="${websiteUrl}" class="btn" target="_blank" rel="noopener noreferrer">进入官网 ↗</a>
-<div class="url">${displayUrl}</div>
-</div>
-</body>
-</html>`;
+                const html = `<!DOCTYPE html><html class="light" lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>CFly 官网入口</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script><script>tailwind.config={darkMode:"class",theme:{extend:{colors:{primary:"#09090b","background-light":"#fff","background-dark":"#09090b"},fontFamily:{display:["Inter","system-ui","sans-serif"]},borderRadius:{DEFAULT:"0.5rem"}}}}</script><style>body{font-family:'Inter',sans-serif}.edge-network-bg{background-image:radial-gradient(circle at 2px 2px,rgba(0,0,0,0.05) 1px,transparent 0);background-size:40px 40px}.dark .edge-network-bg{background-image:radial-gradient(circle at 2px 2px,rgba(255,255,255,0.05) 1px,transparent 0)}.connecting-lines{position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:0.4}.line{position:absolute;background:linear-gradient(90deg,transparent,currentColor,transparent);height:1px;width:100%;opacity:0.1}.node{position:absolute;width:4px;height:4px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;opacity:0.3}</style></head><body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center relative overflow-hidden"><div class="absolute inset-0 edge-network-bg z-0"></div><div class="connecting-lines z-0 text-slate-400 dark:text-slate-600"><div class="line top-[20%] left-0 rotate-[15deg]"></div><div class="line top-[50%] left-0 rotate-[-10deg]"></div><div class="line top-[80%] left-0 rotate-[5deg]"></div><div class="node top-[22%] left-[15%]"></div><div class="node top-[48%] left-[45%]"></div><div class="node top-[75%] left-[85%]"></div><div class="node top-[10%] left-[70%]"></div></div><main class="relative z-10 w-full max-w-[380px] px-6"><div class="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-8 flex flex-col items-center text-center"><div class="mb-8"><span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[12px] font-medium border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>运行中</span></div><div class="mb-6 text-zinc-900 dark:text-zinc-100"><svg class="w-12 h-12" fill="none" height="48" viewBox="0 0 24 24" width="48" xmlns="http://www.w3.org/2000/svg"><path d="M22 2L11 13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg></div><h1 class="text-xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50 mb-2">CFly 官网入口</h1><p class="text-sm text-zinc-500 dark:text-zinc-400 mb-10">点击下方按钮访问官网</p><a class="w-full group bg-primary dark:bg-zinc-50 text-white dark:text-zinc-950 h-11 flex items-center justify-center gap-2 font-medium transition-all hover:opacity-90 active:scale-[0.98]" href="${websiteUrl}" target="_blank" rel="noopener noreferrer">进入官网<span class="material-symbols-outlined text-[18px]">north_east</span></a><div class="mt-10"><span class="text-[11px] font-mono tracking-wider text-zinc-400 dark:text-zinc-600 uppercase">${displayUrl}</span></div></div><button class="fixed bottom-6 right-6 p-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-500 hover:text-zinc-950 dark:hover:text-zinc-50 transition-colors" onclick="document.documentElement.classList.toggle('dark')"><span class="material-symbols-outlined block dark:hidden">dark_mode</span><span class="material-symbols-outlined hidden dark:block">light_mode</span></button></main></body></html>`;
                 
                 return new Response(html, {
                     status: 200,
@@ -162,7 +144,7 @@ h1{color:#333;font-size:24px;margin-bottom:10px}
                     users: cachedData.users,
                     settings: cachedData.settings,
                     lastUpdate: new Date(cachedData.lastUpdate).toISOString(),
-                    apiUrl: REMOTE_API_URL
+                    apiUrl: RUNTIME_CONFIG.apiUrl
                 }, null, 2), {
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -202,11 +184,11 @@ async function syncRemoteConfig(forceRefresh = false) {
     
     try {
         const headers = { 'User-Agent': 'CF-Node-Worker/1.0' };
-        if (API_TOKEN) {
-            headers['Authorization'] = `Bearer ${API_TOKEN}`;
+        if (RUNTIME_CONFIG.apiToken) {
+            headers['Authorization'] = `Bearer ${RUNTIME_CONFIG.apiToken}`;
         }
         
-        const response = await fetch(REMOTE_API_URL, { 
+        const response = await fetch(RUNTIME_CONFIG.apiUrl, { 
             headers,
             cf: { cacheTtl: 0 } // 禁用 Cloudflare 缓存
         });
