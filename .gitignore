@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+*.obfuscated.js
+
+# Backup files
+*beifen*
+backup_*
+
+# Test files
+test-*.md
+debug-*.md
+
+# Deployment packages
+*.zip
+pages-deploy/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

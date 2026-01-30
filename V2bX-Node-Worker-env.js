@@ -4,12 +4,12 @@ import { connect } from 'cloudflare:sockets';
 // 配置区域 - 请根据实际情况修改
 // =============================================================================
 
-// V2board API 配置
-const V2BOARD_CONFIG = {
+// V2board API 默认配置（如果环境变量未设置则使用）
+const DEFAULT_RUNTIME_CONFIG = {
     apiHost: 'https://linyuch.eu.org',            // V2board 后端地址
     apiKey: 'twitteitwitteitwittei',              // API Key (Token)
-    nodeId: 1,                                     // 节点 ID
-    nodeType: 'vless'                              // 节点类型: vless, vmess, trojan, shadowsocks
+    nodeId: 1,                                   // 节点 ID
+    nodeType: 'vless'                            // 节点类型: vless, vmess, trojan, shadowsocks
 };
 
 // 本地兜底配置 (当无法连接管理端时使用)
@@ -49,6 +49,14 @@ let cachedData = {
     lastUpdate: 0,
     trafficBuffer: [],   // 流量上报缓冲区
     onlineUsers: new Set() // 在线用户集合
+};
+
+// 运行时配置（在 fetch 中初始化）
+let RUNTIME_CONFIG = {
+    apiHost: DEFAULT_RUNTIME_CONFIG.apiHost,
+    apiKey: DEFAULT_RUNTIME_CONFIG.apiKey,
+    nodeId: DEFAULT_RUNTIME_CONFIG.nodeId,
+    nodeType: DEFAULT_RUNTIME_CONFIG.nodeType
 };
 
 // =============================================================================
@@ -113,6 +121,14 @@ function smartSortProxies(proxyList, targetAddress) {
 // =============================================================================
 export default {
     async fetch(req, env, ctx) {
+        // 从环境变量读取配置，如果未设置则使用默认值
+        RUNTIME_CONFIG = {
+            apiHost: env.V2B_API_HOST || DEFAULT_RUNTIME_CONFIG.apiHost,
+            apiKey: env.V2B_API_KEY || DEFAULT_RUNTIME_CONFIG.apiKey,
+            nodeId: parseInt(env.V2B_NODE_ID || DEFAULT_RUNTIME_CONFIG.nodeId),
+            nodeType: env.V2B_NODE_TYPE || DEFAULT_RUNTIME_CONFIG.nodeType
+        };
+        
         const url = new URL(req.url);
         
         // WebSocket 升级请求 - VLESS 流量处理
@@ -142,7 +158,7 @@ export default {
                     proxyIPs: BUILTIN_PROXY_IPS,
                     bestDomains: BUILTIN_BEST_DOMAINS,
                     lastUpdate: new Date(cachedData.lastUpdate).toISOString(),
-                    v2boardUrl: V2BOARD_CONFIG.apiHost
+                    v2boardUrl: RUNTIME_CONFIG.apiHost
                 }, null, 2), {
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -187,7 +203,7 @@ async function syncV2boardConfig(forceRefresh = false) {
     
     try {
         // 1. 获取节点信息
-        const nodeInfoUrl = `${V2BOARD_CONFIG.apiHost}/api/v1/server/UniProxy/config?node_type=${V2BOARD_CONFIG.nodeType}&node_id=${V2BOARD_CONFIG.nodeId}&token=${V2BOARD_CONFIG.apiKey}`;
+        const nodeInfoUrl = `${RUNTIME_CONFIG.apiHost}/api/v1/server/UniProxy/config?node_type=${RUNTIME_CONFIG.nodeType}&node_id=${RUNTIME_CONFIG.nodeId}&token=${RUNTIME_CONFIG.apiKey}`;
         
         const nodeInfoResp = await fetch(nodeInfoUrl, {
             headers: {
@@ -203,7 +219,7 @@ async function syncV2boardConfig(forceRefresh = false) {
         const nodeInfo = await nodeInfoResp.json();
         
         // 2. 获取用户列表
-        const userListUrl = `${V2BOARD_CONFIG.apiHost}/api/v1/server/UniProxy/user?node_type=${V2BOARD_CONFIG.nodeType}&node_id=${V2BOARD_CONFIG.nodeId}&token=${V2BOARD_CONFIG.apiKey}`;
+        const userListUrl = `${RUNTIME_CONFIG.apiHost}/api/v1/server/UniProxy/user?node_type=${RUNTIME_CONFIG.nodeType}&node_id=${RUNTIME_CONFIG.nodeId}&token=${RUNTIME_CONFIG.apiKey}`;
         
         const userListResp = await fetch(userListUrl, {
             headers: {
@@ -273,7 +289,7 @@ function generateVlessLinks(workerDomain, uuid, nodeInfo) {
     const links = [];
     
     // 从节点信息中提取配置
-    const protocol = V2BOARD_CONFIG.nodeType; // vless, vmess, trojan
+    const protocol = RUNTIME_CONFIG.nodeType; // vless, vmess, trojan
     const port = nodeInfo.server_port || 443;
     const network = nodeInfo.network || 'ws';
     const serverName = nodeInfo.server_name || nodeInfo.host || workerDomain;
@@ -346,9 +362,9 @@ function generateVlessLinks(workerDomain, uuid, nodeInfo) {
         // 生成节点名称
         let nodeName;
         if (customAlias) {
-            nodeName = `${customAlias}-Node${V2BOARD_CONFIG.nodeId}`;
+            nodeName = `${customAlias}-Node${RUNTIME_CONFIG.nodeId}`;
         } else {
-            nodeName = `${host}-Node${V2BOARD_CONFIG.nodeId}`;
+            nodeName = `${host}-Node${RUNTIME_CONFIG.nodeId}`;
         }
         
         // 生成链接
@@ -384,15 +400,17 @@ function generateVlessLinks(workerDomain, uuid, nodeInfo) {
 }
 
 // =============================================================================
-// WebSocket 处理 - VLESS 流量转发
+// WebSocket 处理 - VLESS 流量转发 (已修复冷启动延迟 -1 问题)
 // =============================================================================
 async function handleWebSocket(req, ctx) {
-    // 同步配置
-    await syncV2boardConfig();
-    
-    // 创建 WebSocket 对
+    // 【关键修改】: 先建立 WebSocket 连接，防止客户端握手超时
+    // 这行代码会立即发送 HTTP 101 Switching Protocols
     const [client, webSocket] = Object.values(new WebSocketPair());
-    webSocket.accept();
+    webSocket.accept(); 
+
+    // 【关键修改】: 握手成功后，再进行配置同步
+    // 此时客户端已经连接成功，等待数据即可，不会判定为超时
+    await syncV2boardConfig();
     
     const url = new URL(req.url);
     
@@ -510,6 +528,7 @@ async function handleWebSocket(req, ctx) {
                 
                 if (!cachedData.users[uuidString]) {
                     console.log('Unauthorized UUID:', uuidString);
+                    // 如果 UUID 无效，稍微延迟一下再关闭，防止被探测
                     return;
                 }
             }
@@ -768,7 +787,7 @@ async function flushTrafficBuffer() {
     cachedData.trafficBuffer = [];
     
     try {
-        const reportUrl = `${V2BOARD_CONFIG.apiHost}/api/v1/server/UniProxy/push?node_type=${V2BOARD_CONFIG.nodeType}&node_id=${V2BOARD_CONFIG.nodeId}&token=${V2BOARD_CONFIG.apiKey}`;
+        const reportUrl = `${RUNTIME_CONFIG.apiHost}/api/v1/server/UniProxy/push?node_type=${RUNTIME_CONFIG.nodeType}&node_id=${RUNTIME_CONFIG.nodeId}&token=${RUNTIME_CONFIG.apiKey}`;
         
         const response = await fetch(reportUrl, {
             method: 'POST',
@@ -805,7 +824,7 @@ async function reportOnlineUsers() {
             onlineData[userId] = ["CF-Worker"];
         });
         
-        const reportUrl = `${V2BOARD_CONFIG.apiHost}/api/v1/server/UniProxy/alive?node_type=${V2BOARD_CONFIG.nodeType}&node_id=${V2BOARD_CONFIG.nodeId}&token=${V2BOARD_CONFIG.apiKey}`;
+        const reportUrl = `${RUNTIME_CONFIG.apiHost}/api/v1/server/UniProxy/alive?node_type=${RUNTIME_CONFIG.nodeType}&node_id=${RUNTIME_CONFIG.nodeId}&token=${RUNTIME_CONFIG.apiKey}`;
         
         const response = await fetch(reportUrl, {
             method: 'POST',
